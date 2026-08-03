@@ -23,7 +23,7 @@ import { evaluatePasswordStrength, generateStrongPassword } from '../utils/secur
 import { TipoAutenticacao } from '../types';
 
 export const PerfilView: React.FC = () => {
-  const { perfil, usuarios, updatePerfil, switchUsuario, deleteUsuario } = useApp();
+  const { perfil, usuarios, updatePerfil, switchUsuario, deleteUsuario, desbloquearUsuario } = useApp();
 
   const [nome, setNome] = useState(perfil.nome);
   const [cargo, setCargo] = useState(perfil.cargo);
@@ -464,11 +464,16 @@ export const PerfilView: React.FC = () => {
         <div className="space-y-3">
           {usuarios.map((admin, idx) => {
             const isCurrent = admin.id === perfil.id;
+            const isLocked = Boolean(admin.bloqueadoAte && new Date(admin.bloqueadoAte).getTime() > Date.now());
+            const falhasCount = admin.tentativasIncorretas || 0;
+
             return (
               <div
                 key={admin.id}
                 className={`flex items-center justify-between rounded-xl border p-3.5 transition-all ${
-                  isCurrent
+                  isLocked
+                    ? 'border-red-500/50 bg-red-950/20 text-white'
+                    : isCurrent
                     ? 'border-[#D4AF37] bg-[#D4AF37]/10 text-white'
                     : 'border-white/10 bg-[#111111] text-white/70'
                 }`}
@@ -493,6 +498,15 @@ export const PerfilView: React.FC = () => {
                           VOCÊ (CONECTADO)
                         </span>
                       )}
+                      {isLocked ? (
+                        <span className="rounded bg-red-950 text-red-300 border border-red-500/40 text-[9px] font-extrabold px-1.5 py-0.5 flex items-center gap-1">
+                          <Lock className="h-2.5 w-2.5" /> BLOQUEADO (3/3 FALHAS)
+                        </span>
+                      ) : falhasCount > 0 ? (
+                        <span className="rounded bg-amber-950 text-amber-300 border border-amber-500/40 text-[9px] font-bold px-1.5 py-0.5">
+                          ⚠️ {falhasCount}/3 FALHAS
+                        </span>
+                      ) : null}
                     </div>
                     <span className="text-[10px] text-white/50 block">
                       {admin.email} • {admin.cargo}
@@ -501,7 +515,22 @@ export const PerfilView: React.FC = () => {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  {!isCurrent && (
+                  {(isLocked || falhasCount > 0) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        desbloquearUsuario(admin.id);
+                        setActionMessage(`A conta de ${admin.nome} foi desbloqueada com sucesso!`);
+                        setTimeout(() => setActionMessage(null), 3500);
+                      }}
+                      className="flex items-center gap-1 rounded-lg bg-emerald-950/60 border border-emerald-500/40 px-2.5 py-1 text-[10px] font-bold text-emerald-300 hover:bg-emerald-900/80 transition-all cursor-pointer"
+                    >
+                      <ShieldCheck className="h-3 w-3 text-emerald-400" />
+                      Desbloquear Conta
+                    </button>
+                  )}
+
+                  {!isCurrent && !isLocked && (
                     <button
                       type="button"
                       onClick={() => switchUsuario(admin.id)}

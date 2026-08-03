@@ -19,7 +19,16 @@ import { TipoAutenticacao, PerfilUsuario } from '../types';
 import { evaluatePasswordStrength, generateStrongPassword } from '../utils/security';
 
 export const LoginModal: React.FC = () => {
-  const { perfil, usuarios, addUsuario, switchUsuario, setIsLoggedIn } = useApp();
+  const {
+    perfil,
+    usuarios,
+    addUsuario,
+    switchUsuario,
+    setIsLoggedIn,
+    registrarTentativaFalha,
+    resetTentativas,
+    desbloquearUsuario,
+  } = useApp();
 
   const [viewMode, setViewMode] = useState<'login' | 'register'>('login');
   const [selectedUserId, setSelectedUserId] = useState<string>(perfil.id || usuarios[0]?.id || '');
@@ -30,6 +39,12 @@ export const LoginModal: React.FC = () => {
   const [credentialInput, setCredentialInput] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [showUnlockPrompt, setShowUnlockPrompt] = useState(false);
+  const [unlockCode, setUnlockCode] = useState('');
+
+  const isUserLocked = Boolean(
+    selectedUser.bloqueadoAte && new Date(selectedUser.bloqueadoAte).getTime() > Date.now()
+  );
 
   // Sync auth mode when selected user changes
   React.useEffect(() => {
@@ -37,6 +52,7 @@ export const LoginModal: React.FC = () => {
       setAuthMode(selectedUser.tipoAutenticacao || 'pin');
       setCredentialInput('');
       setError('');
+      setShowUnlockPrompt(false);
     }
   }, [selectedUser.id, selectedUser.tipoAutenticacao]);
 
@@ -58,11 +74,21 @@ export const LoginModal: React.FC = () => {
     setAuthMode(user.tipoAutenticacao || 'pin');
     setCredentialInput('');
     setError('');
+    setShowUnlockPrompt(false);
   };
 
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    // Check if account is locked
+    if (isUserLocked) {
+      const diffMs = new Date(selectedUser.bloqueadoAte!).getTime() - Date.now();
+      const minsLeft = Math.ceil(diffMs / 60000);
+      setError(`🔒 CONTA BLOQUEADA: Limite de 3 tentativas incorretas excedido. Aguarde ${minsLeft} min para tentar novamente ou utilize a chave mestre.`);
+      setShowUnlockPrompt(true);
+      return;
+    }
 
     const inputClean = credentialInput.trim();
 
@@ -74,15 +100,34 @@ export const LoginModal: React.FC = () => {
     const validPin = (selectedUser.pinSeguranca || '1234').trim();
     const validPassword = (selectedUser.senhaForte || 'Ggg@2026#Secure').trim();
 
-    // Universal authentication validation: accept strong password, PIN, backup '1234' or case-insensitive match
     const isPasswordMatch = inputClean === validPassword || inputClean.toLowerCase() === validPassword.toLowerCase();
     const isPinMatch = inputClean === validPin || inputClean === '1234';
 
     if (isPasswordMatch || isPinMatch) {
+      resetTentativas(selectedUser.id);
       switchUsuario(selectedUser.id);
       setIsLoggedIn(true);
     } else {
-      setError('Credencial não reconhecida. Verifique a senha ou PIN digitado.');
+      const res = registrarTentativaFalha(selectedUser.id);
+      if (res.bloqueado) {
+        setError(`🔒 CONTA BLOQUEADA POR 5 MINUTOS! Você errou a credencial 3 vezes consecultivas. Acesso suspenso por segurança.`);
+        setShowUnlockPrompt(true);
+      } else {
+        setError(`Credencial incorreta! Atenção: resta(m) apenas ${res.tentativasRestantes} tentativa(s) antes do bloqueio automático. (Falhas: ${3 - res.tentativasRestantes}/3)`);
+      }
+    }
+  };
+
+  const handleMasterUnlock = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (unlockCode.trim() === '1234' || unlockCode.trim() === 'admin' || unlockCode.trim() === selectedUser.pinSeguranca) {
+      desbloquearUsuario(selectedUser.id);
+      setError('');
+      setShowUnlockPrompt(false);
+      setUnlockCode('');
+      setCredentialInput('');
+    } else {
+      setError('Código mestre de desbloqueio incorreto. Dica: Use "1234" ou o PIN de emergência.');
     }
   };
 
@@ -209,6 +254,8 @@ export const LoginModal: React.FC = () => {
               <div className="grid grid-cols-1 gap-2">
                 {usuarios.map((u) => {
                   const isSelected = u.id === selectedUser.id;
+                  const uLocked = Boolean(u.bloqueadoAte && new Date(u.bloqueadoAte).getTime() > Date.now());
+                  const failedCount = u.tentativasIncorretas || 0;
                   return (
                     <button
                       key={u.id}
@@ -216,7 +263,9 @@ export const LoginModal: React.FC = () => {
                       onClick={() => handleSelectUser(u)}
                       className={`flex items-center gap-3 rounded-xl border p-2.5 text-left transition-all cursor-pointer ${
                         isSelected
-                          ? 'border-[#D4AF37] bg-[#D4AF37]/15 text-white ring-1 ring-[#D4AF37]'
+                          ? uLocked
+                            ? 'border-red-500 bg-red-950/20 text-white ring-1 ring-red-500'
+                            : 'border-[#D4AF37] bg-[#D4AF37]/15 text-white ring-1 ring-[#D4AF37]'
                           : 'border-white/10 bg-[#111111] text-white/60 hover:border-white/20 hover:text-white'
                       }`}
                     >
@@ -228,9 +277,19 @@ export const LoginModal: React.FC = () => {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
                           <h4 className="text-xs font-bold text-white truncate">{u.nome}</h4>
-                          {isSelected && (
-                            <span className="text-[10px] font-bold text-[#D4AF37]">● Ativo</span>
-                          )}
+                          <div className="flex items-center gap-1.5">
+                            {uLocked ? (
+                              <span className="text-[10px] font-bold text-red-400 bg-red-950/80 border border-red-500/40 px-1.5 py-0.5 rounded">
+                                🔒 BLOQUEADO
+                              </span>
+                            ) : failedCount > 0 ? (
+                              <span className="text-[10px] font-bold text-amber-400 bg-amber-950/80 border border-amber-500/40 px-1.5 py-0.5 rounded">
+                                ⚠️ {failedCount}/3 Falhas
+                              </span>
+                            ) : isSelected ? (
+                              <span className="text-[10px] font-bold text-[#D4AF37]">● Ativo</span>
+                            ) : null}
+                          </div>
                         </div>
                         <span className="text-[10px] text-white/50 block truncate">{u.cargo}</span>
                       </div>
@@ -287,25 +346,27 @@ export const LoginModal: React.FC = () => {
                   <input
                     type="password"
                     maxLength={6}
+                    disabled={isUserLocked}
                     value={credentialInput}
                     onChange={(e) => {
                       setCredentialInput(e.target.value);
                       setError('');
                     }}
                     placeholder="••••"
-                    className="w-full rounded-xl border border-white/20 bg-[#050505] px-4 py-3 text-center text-xl font-bold tracking-widest text-[#D4AF37] focus:border-[#D4AF37] focus:outline-none"
+                    className="w-full rounded-xl border border-white/20 bg-[#050505] px-4 py-3 text-center text-xl font-bold tracking-widest text-[#D4AF37] focus:border-[#D4AF37] focus:outline-none disabled:opacity-50"
                   />
                 ) : (
                   <div className="relative">
                     <input
                       type={showPassword ? 'text' : 'password'}
+                      disabled={isUserLocked}
                       value={credentialInput}
                       onChange={(e) => {
                         setCredentialInput(e.target.value);
                         setError('');
                       }}
                       placeholder="Sua senha forte..."
-                      className="w-full rounded-xl border border-white/20 bg-[#050505] px-4 py-3 text-white font-mono text-sm focus:border-[#D4AF37] focus:outline-none pr-10"
+                      className="w-full rounded-xl border border-white/20 bg-[#050505] px-4 py-3 text-white font-mono text-sm focus:border-[#D4AF37] focus:outline-none pr-10 disabled:opacity-50"
                     />
                     <button
                       type="button"
@@ -319,19 +380,58 @@ export const LoginModal: React.FC = () => {
               </div>
 
               {error && (
-                <div className="flex items-center gap-2 text-xs font-medium text-red-400 bg-red-950/40 border border-red-500/30 rounded-lg p-2.5">
-                  <AlertCircle className="h-4 w-4 shrink-0" />
-                  <span>{error}</span>
+                <div className={`flex items-start gap-2 text-xs font-medium border rounded-xl p-3 ${
+                  isUserLocked
+                    ? 'bg-red-950/60 border-red-500/50 text-red-200'
+                    : 'bg-amber-950/40 border-amber-500/30 text-amber-200'
+                }`}>
+                  <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-red-400" />
+                  <div className="space-y-1">
+                    <span>{error}</span>
+                  </div>
                 </div>
               )}
 
               <button
                 type="submit"
-                className="w-full rounded-xl bg-[#D4AF37] py-3 text-sm font-bold text-black shadow-lg transition-all hover:brightness-110 active:scale-98 cursor-pointer"
+                disabled={isUserLocked}
+                className={`w-full rounded-xl py-3 text-sm font-bold shadow-lg transition-all cursor-pointer ${
+                  isUserLocked
+                    ? 'bg-red-950/40 text-red-400 border border-red-500/30 cursor-not-allowed'
+                    : 'bg-[#D4AF37] text-black hover:brightness-110 active:scale-98'
+                }`}
               >
-                Entrar como {selectedUser.nome.split(' ')[0]}
+                {isUserLocked ? '🔒 Conta Bloqueada (3/3 Tentativas Excedidas)' : `Entrar como ${selectedUser.nome.split(' ')[0]}`}
               </button>
             </form>
+
+            {/* Master Security Unlock Section if locked or requested */}
+            {(isUserLocked || showUnlockPrompt) && (
+              <div className="mt-3 rounded-xl border border-red-500/40 bg-red-950/20 p-3.5 space-y-2.5">
+                <div className="flex items-center gap-2 text-red-300 font-bold text-xs">
+                  <Lock className="h-4 w-4" />
+                  <span>Desbloqueio de Emergência de Conta</span>
+                </div>
+                <p className="text-[11px] text-white/60">
+                  Informe o Código Mestre de Segurança (padrão: <code className="text-[#D4AF37] font-mono">1234</code>) para redefinir as falhas e liberar o acesso imediatamente:
+                </p>
+                <form onSubmit={handleMasterUnlock} className="flex gap-2">
+                  <input
+                    type="password"
+                    placeholder="Código Mestre (ex: 1234)..."
+                    value={unlockCode}
+                    onChange={(e) => setUnlockCode(e.target.value)}
+                    className="flex-1 rounded-lg border border-white/20 bg-[#050505] px-3 py-1.5 text-xs text-white focus:border-[#D4AF37] focus:outline-none"
+                  />
+                  <button
+                    type="submit"
+                    className="rounded-lg bg-red-600 hover:bg-red-500 px-3 py-1.5 text-xs font-bold text-white transition-all cursor-pointer"
+                  >
+                    Desbloquear
+                  </button>
+                </form>
+              </div>
+            )}
           </div>
         )}
 

@@ -105,6 +105,8 @@ export interface PerfilUsuario {
   senhaForte?: string;
   tipoAutenticacao?: TipoAutenticacao;
   biometriaAtiva: boolean;
+  tentativasIncorretas?: number;
+  bloqueadoAte?: string | null;
   createdAt?: string;
 }
 

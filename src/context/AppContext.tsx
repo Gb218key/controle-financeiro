@@ -88,6 +88,9 @@ interface AppContextType {
   addUsuario: (userData: Omit<PerfilUsuario, 'id' | 'biometriaAtiva' | 'createdAt'>) => { success: boolean; message?: string };
   switchUsuario: (id: string) => void;
   deleteUsuario: (id: string) => { success: boolean; message?: string };
+  registrarTentativaFalha: (id: string) => { bloqueado: boolean; tentativasRestantes: number; tempoBloqueioMinutos: number };
+  desbloquearUsuario: (id: string) => void;
+  resetTentativas: (id: string) => void;
 
   exportarBackupJson: () => void;
   importarBackupJson: (fileContent: string) => boolean;
@@ -508,8 +511,65 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const switchUsuario = (id: string) => {
     const found = usuarios.find((u) => u.id === id);
     if (found) {
-      setPerfil(found);
+      // Check if user lock expired
+      if (found.bloqueadoAte && new Date(found.bloqueadoAte).getTime() <= Date.now()) {
+        const unlocked = { ...found, tentativasIncorretas: 0, bloqueadoAte: null };
+        setUsuarios((prev) => prev.map((u) => (u.id === id ? unlocked : u)));
+        setPerfil(unlocked);
+      } else {
+        setPerfil(found);
+      }
     }
+  };
+
+  const registrarTentativaFalha = (id: string): { bloqueado: boolean; tentativasRestantes: number; tempoBloqueioMinutos: number } => {
+    let result = { bloqueado: false, tentativasRestantes: 2, tempoBloqueioMinutos: 5 };
+    setUsuarios((prevUsers) => {
+      return prevUsers.map((u) => {
+        if (u.id === id) {
+          const falhas = (u.tentativasIncorretas || 0) + 1;
+          const estaBloqueado = falhas >= 3;
+          const bloqueioIso = estaBloqueado ? new Date(Date.now() + 5 * 60 * 1000).toISOString() : u.bloqueadoAte;
+
+          result = {
+            bloqueado: estaBloqueado,
+            tentativasRestantes: Math.max(0, 3 - falhas),
+            tempoBloqueioMinutos: 5,
+          };
+
+          const updated = {
+            ...u,
+            tentativasIncorretas: falhas,
+            bloqueadoAte: bloqueioIso,
+          };
+
+          if (perfil.id === id) {
+            setPerfil(updated);
+          }
+
+          return updated;
+        }
+        return u;
+      });
+    });
+    return result;
+  };
+
+  const resetTentativas = (id: string) => {
+    setUsuarios((prevUsers) =>
+      prevUsers.map((u) => {
+        if (u.id === id) {
+          const updated = { ...u, tentativasIncorretas: 0, bloqueadoAte: null };
+          if (perfil.id === id) setPerfil(updated);
+          return updated;
+        }
+        return u;
+      })
+    );
+  };
+
+  const desbloquearUsuario = (id: string) => {
+    resetTentativas(id);
   };
 
   const deleteUsuario = (id: string): { success: boolean; message?: string } => {
@@ -657,6 +717,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         addUsuario,
         switchUsuario,
         deleteUsuario,
+        registrarTentativaFalha,
+        desbloquearUsuario,
+        resetTentativas,
         exportarBackupJson,
         importarBackupJson,
         selectedClienteForHistory,
