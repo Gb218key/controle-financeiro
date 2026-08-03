@@ -95,7 +95,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             Visão Geral
           </span>
           <h2 className="text-2xl font-serif font-bold text-white mt-1">
-            Painel de Indicadores
+            Painel de Controle
           </h2>
           <p className="text-xs text-white/50 mt-1">
             Controle integrado de caixa, carteira de crédito e fluxo de cobranças.

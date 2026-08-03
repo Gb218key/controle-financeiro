@@ -35,7 +35,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenNovoCliente, onOpenNovoE
     badge?: number;
     badgeColor?: string;
   }[] = [
-    { id: 'Dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'Dashboard', label: 'Painel de Controle', icon: LayoutDashboard },
     { id: 'Clientes', label: 'Clientes', icon: Users },
     { id: 'Empréstimos', label: 'Empréstimos', icon: Banknote },
     {
