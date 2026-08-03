@@ -21,6 +21,7 @@ import {
   initialPerfil,
   initialUsuarios,
 } from '../data/mockData';
+import { getEncryptedStorage, setEncryptedStorage } from '../utils/crypto';
 
 interface SimularEmprestimoResult {
   valorEmprestado: number;
@@ -118,40 +119,32 @@ const LOCAL_STORAGE_KEY = 'ggg_financeira_prod_v2';
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [clientes, setClientes] = useState<Cliente[]>(() => {
-    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_clientes`);
-    return saved ? JSON.parse(saved) : initialClientes;
+    return getEncryptedStorage(`${LOCAL_STORAGE_KEY}_clientes`, initialClientes);
   });
 
   const [emprestimos, setEmprestimos] = useState<Emprestimo[]>(() => {
-    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_emprestimos`);
-    return saved ? JSON.parse(saved) : initialEmprestimos;
+    return getEncryptedStorage(`${LOCAL_STORAGE_KEY}_emprestimos`, initialEmprestimos);
   });
 
   const [pagamentos, setPagamentos] = useState<Pagamento[]>(() => {
-    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_pagamentos`);
-    return saved ? JSON.parse(saved) : initialPagamentos;
+    return getEncryptedStorage(`${LOCAL_STORAGE_KEY}_pagamentos`, initialPagamentos);
   });
 
   const [notificacoes, setNotificacoes] = useState<Notificacao[]>(() => {
-    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_notificacoes`);
-    return saved ? JSON.parse(saved) : initialNotificacoes;
+    return getEncryptedStorage(`${LOCAL_STORAGE_KEY}_notificacoes`, initialNotificacoes);
   });
 
   const [configuracoes, setConfiguracoes] = useState<ConfiguracoesApp>(() => {
-    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_configuracoes`);
-    return saved ? JSON.parse(saved) : initialConfiguracoes;
+    return getEncryptedStorage(`${LOCAL_STORAGE_KEY}_configuracoes`, initialConfiguracoes);
   });
 
   const [usuarios, setUsuarios] = useState<PerfilUsuario[]>(() => {
-    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_usuarios`);
-    return saved ? JSON.parse(saved) : initialUsuarios;
+    return getEncryptedStorage(`${LOCAL_STORAGE_KEY}_usuarios`, initialUsuarios);
   });
 
   const [perfil, setPerfil] = useState<PerfilUsuario>(() => {
-    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_perfil`);
-    if (saved) {
-      return JSON.parse(saved);
-    }
+    const saved = getEncryptedStorage<PerfilUsuario | null>(`${LOCAL_STORAGE_KEY}_perfil`, null);
+    if (saved) return saved;
     return usuarios[0] || initialPerfil;
   });
 
@@ -161,33 +154,33 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [selectedClienteForHistory, setSelectedClienteForHistory] = useState<Cliente | null>(null);
   const [selectedEmprestimoForContract, setSelectedEmprestimoForContract] = useState<Emprestimo | null>(null);
 
-  // Sync state to local storage
+  // Sync state to local storage with AES-256-GCM encryption
   useEffect(() => {
-    localStorage.setItem(`${LOCAL_STORAGE_KEY}_clientes`, JSON.stringify(clientes));
+    setEncryptedStorage(`${LOCAL_STORAGE_KEY}_clientes`, clientes);
   }, [clientes]);
 
   useEffect(() => {
-    localStorage.setItem(`${LOCAL_STORAGE_KEY}_emprestimos`, JSON.stringify(emprestimos));
+    setEncryptedStorage(`${LOCAL_STORAGE_KEY}_emprestimos`, emprestimos);
   }, [emprestimos]);
 
   useEffect(() => {
-    localStorage.setItem(`${LOCAL_STORAGE_KEY}_pagamentos`, JSON.stringify(pagamentos));
+    setEncryptedStorage(`${LOCAL_STORAGE_KEY}_pagamentos`, pagamentos);
   }, [pagamentos]);
 
   useEffect(() => {
-    localStorage.setItem(`${LOCAL_STORAGE_KEY}_notificacoes`, JSON.stringify(notificacoes));
+    setEncryptedStorage(`${LOCAL_STORAGE_KEY}_notificacoes`, notificacoes);
   }, [notificacoes]);
 
   useEffect(() => {
-    localStorage.setItem(`${LOCAL_STORAGE_KEY}_configuracoes`, JSON.stringify(configuracoes));
+    setEncryptedStorage(`${LOCAL_STORAGE_KEY}_configuracoes`, configuracoes);
   }, [configuracoes]);
 
   useEffect(() => {
-    localStorage.setItem(`${LOCAL_STORAGE_KEY}_perfil`, JSON.stringify(perfil));
+    setEncryptedStorage(`${LOCAL_STORAGE_KEY}_perfil`, perfil);
   }, [perfil]);
 
   useEffect(() => {
-    localStorage.setItem(`${LOCAL_STORAGE_KEY}_usuarios`, JSON.stringify(usuarios));
+    setEncryptedStorage(`${LOCAL_STORAGE_KEY}_usuarios`, usuarios);
   }, [usuarios]);
 
   // Recalculate client statuses based on current loans

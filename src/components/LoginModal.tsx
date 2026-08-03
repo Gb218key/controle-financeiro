@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-  Fingerprint,
   Lock,
   ShieldCheck,
   KeyRound,
@@ -31,7 +30,6 @@ export const LoginModal: React.FC = () => {
   const [credentialInput, setCredentialInput] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
-  const [isScanningBiometrics, setIsScanningBiometrics] = useState(false);
 
   // Sync auth mode when selected user changes
   React.useEffect(() => {
@@ -125,16 +123,6 @@ export const LoginModal: React.FC = () => {
     } else {
       setError(result.message || 'Erro ao criar conta de administrador.');
     }
-  };
-
-  const handleBiometricsScan = () => {
-    setIsScanningBiometrics(true);
-    setError('');
-    setTimeout(() => {
-      setIsScanningBiometrics(false);
-      switchUsuario(selectedUser.id);
-      setIsLoggedIn(true);
-    }, 1200);
   };
 
   const handleGenerateRegPassword = () => {
@@ -344,20 +332,6 @@ export const LoginModal: React.FC = () => {
                 Entrar como {selectedUser.nome.split(' ')[0]}
               </button>
             </form>
-
-            {/* Biometrics */}
-            <div className="border-t border-white/5 pt-3 text-center space-y-2">
-              <button
-                onClick={handleBiometricsScan}
-                disabled={isScanningBiometrics}
-                className="group relative flex w-full items-center justify-center gap-2 rounded-xl border border-[#D4AF37]/30 bg-white/5 px-4 py-2.5 text-xs font-bold text-[#D4AF37] transition-all hover:border-[#D4AF37] hover:bg-[#D4AF37]/10 active:scale-98 disabled:opacity-50 cursor-pointer"
-              >
-                <Fingerprint className={`h-4 w-4 text-[#D4AF37] ${isScanningBiometrics ? 'animate-bounce' : ''}`} />
-                <span>
-                  {isScanningBiometrics ? 'Validando Biometria...' : 'Autenticar com Biometria'}
-                </span>
-              </button>
-            </div>
           </div>
         )}
 
