@@ -28,11 +28,16 @@ const MainLayout: React.FC = () => {
     setActiveModule('Empréstimos');
   };
 
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-screen bg-[#050505] text-white font-sans antialiased selection:bg-[#D4AF37] selection:text-black">
+        <LoginModal />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#050505] text-white font-sans antialiased selection:bg-[#D4AF37] selection:text-black">
-      {/* Login Screen Overlay when logged out */}
-      {!isLoggedIn && <LoginModal />}
-
       {/* Sidebar Navigation */}
       <Sidebar
         onOpenNovoCliente={handleOpenNovoCliente}

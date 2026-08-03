@@ -156,7 +156,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   });
 
   const [activeModule, setActiveModule] = useState<ModuloApp>('Dashboard');
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(true); // Logged in initially for smooth preview
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false); // Authentication required before opening dashboard
   
   const [selectedClienteForHistory, setSelectedClienteForHistory] = useState<Cliente | null>(null);
   const [selectedEmprestimoForContract, setSelectedEmprestimoForContract] = useState<Emprestimo | null>(null);
