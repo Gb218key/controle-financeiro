@@ -62,6 +62,7 @@ interface AppContextType {
     vencimento: string;
     observacoes?: string;
   }) => string;
+  deleteEmprestimo: (id: string) => void;
 
   registrarPagamento: (pagamentoData: {
     emprestimoID: string;
@@ -376,6 +377,39 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     ]);
 
     return empId;
+  };
+
+  // Delete Loan (Remover empréstimo lançado por engano)
+  const deleteEmprestimo = (id: string) => {
+    const emp = emprestimos.find((e) => e.id === id);
+    if (!emp) return;
+
+    const cliente = clientes.find((c) => c.id === emp.clienteID);
+
+    // 1. Remove loan from state
+    setEmprestimos((prev) => prev.filter((e) => e.id !== id));
+
+    // 2. Remove all associated payments
+    setPagamentos((prev) => prev.filter((p) => p.emprestimoID !== id));
+
+    // 3. Clear selected loan for contract if it was this one
+    if (selectedEmprestimoForContract?.id === id) {
+      setSelectedEmprestimoForContract(null);
+    }
+
+    // 4. Create notification about deletion
+    setNotificacoes((prev) => [
+      {
+        id: `not-${Date.now()}`,
+        titulo: 'Empréstimo Removido',
+        mensagem: `O empréstimo de R$ ${emp.valorEmprestado.toLocaleString('pt-BR')} (${cliente?.nome || 'Cliente'}) foi excluído. Indicadores recalculados.`,
+        tipo: 'alerta',
+        data: new Date().toISOString().split('T')[0],
+        lida: false,
+        clienteID: emp.clienteID,
+      },
+      ...prev,
+    ]);
   };
 
   // Register Payment
@@ -707,6 +741,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         updateCliente,
         deleteCliente,
         addEmprestimo,
+        deleteEmprestimo,
         registrarPagamento,
         simularEmprestimo,
         marcarNotificacaoLida,

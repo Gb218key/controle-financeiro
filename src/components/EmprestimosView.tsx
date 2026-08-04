@@ -16,7 +16,9 @@ import {
   X,
   Printer,
   ChevronRight,
-  Send
+  Send,
+  Trash2,
+  AlertTriangle
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { TipoJuros, StatusEmprestimo, Emprestimo } from '../types';
@@ -30,6 +32,7 @@ export const EmprestimosView: React.FC<EmprestimosViewProps> = ({ initialOpenNov
     clientes,
     emprestimos,
     addEmprestimo,
+    deleteEmprestimo,
     registrarPagamento,
     simularEmprestimo,
     configuracoes,
@@ -72,6 +75,9 @@ export const EmprestimosView: React.FC<EmprestimosViewProps> = ({ initialOpenNov
   const [selectedParcelaNum, setSelectedParcelaNum] = useState<number>(1);
   const [valorPagoInput, setValorPagoInput] = useState<number>(0);
   const [formaPagamento, setFormaPagamento] = useState<'PIX' | 'Dinheiro' | 'Transferência' | 'Cartão' | 'Outro'>('PIX');
+
+  // Delete Confirmation Modal state
+  const [loanToDelete, setLoanToDelete] = useState<Emprestimo | null>(null);
 
   // Filters for Loans List
   const [search, setSearch] = useState('');
@@ -482,10 +488,19 @@ export const EmprestimosView: React.FC<EmprestimosViewProps> = ({ initialOpenNov
                             setSelectedEmprestimoForContract(emp);
                             setActiveModule('Contratos');
                           }}
-                          className="flex items-center gap-1 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-xs font-semibold text-amber-300 hover:bg-zinc-800"
+                          className="flex items-center gap-1 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-xs font-semibold text-amber-300 hover:bg-zinc-800 cursor-pointer"
                         >
                           <FileText className="h-3.5 w-3.5" />
-                          Gerar Contrato / Promissória
+                          Gerar Contrato
+                        </button>
+
+                        <button
+                          onClick={() => setLoanToDelete(emp)}
+                          title="Remover empréstimo criado por engano"
+                          className="flex items-center gap-1 rounded-lg border border-red-500/30 bg-red-950/40 px-2.5 py-1.5 text-xs font-semibold text-red-300 hover:bg-red-900/60 hover:border-red-500 transition-all cursor-pointer"
+                        >
+                          <Trash2 className="h-3.5 w-3.5 text-red-400" />
+                          <span>Excluir</span>
                         </button>
 
                         <span
@@ -673,6 +688,81 @@ export const EmprestimosView: React.FC<EmprestimosViewProps> = ({ initialOpenNov
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CONFIRMAÇÃO DE EXCLUSÃO DE EMPRÉSTIMO */}
+      {loanToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/80 p-4 backdrop-blur-md">
+          <div className="w-full max-w-md rounded-2xl border border-red-500/40 bg-zinc-900 p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <h3 className="text-sm font-bold text-red-400 flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-red-500" />
+                Excluir Empréstimo Incorreto
+              </h3>
+              <button
+                onClick={() => setLoanToDelete(null)}
+                className="rounded p-1 text-zinc-400 hover:bg-zinc-800"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <p className="text-zinc-300">
+                Esta ação destina-se a remover empréstimos que foram cadastrados por engano.
+              </p>
+
+              <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3 space-y-1.5 text-zinc-300">
+                <div className="flex justify-between">
+                  <span className="text-zinc-500">Contrato:</span>
+                  <span className="font-mono font-bold text-amber-400">#{loanToDelete.id}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-zinc-500">Cliente:</span>
+                  <span className="font-bold text-white">
+                    {clientes.find((c) => c.id === loanToDelete.clienteID)?.nome || 'Cliente'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-zinc-500">Valor Principal:</span>
+                  <span className="font-bold text-emerald-400">
+                    {formatBRL(loanToDelete.valorEmprestado)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-zinc-500">Total a Receber:</span>
+                  <span className="font-bold text-zinc-100">
+                    {formatBRL(loanToDelete.valorTotal)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-amber-500/30 bg-amber-950/20 p-3 text-[11px] text-amber-200">
+                💡 <strong>Ajuste Automático do Painel:</strong> Os indicadores do Painel de Controle (caixa, total emprestado e juros) serão recalculados sem afetação da integridade do sistema.
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-zinc-800 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setLoanToDelete(null)}
+                className="rounded-xl border border-zinc-700 px-4 py-2 text-xs font-semibold text-zinc-300 hover:bg-zinc-800 cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  deleteEmprestimo(loanToDelete.id);
+                  setLoanToDelete(null);
+                }}
+                className="rounded-xl bg-red-600 hover:bg-red-500 px-5 py-2 text-xs font-bold text-white shadow-lg transition-all cursor-pointer"
+              >
+                Sim, Excluir Empréstimo
+              </button>
+            </div>
           </div>
         </div>
       )}

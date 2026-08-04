@@ -31,6 +31,7 @@ export const ClientesView: React.FC<ClientesViewProps> = ({ initialOpenNovo }) =
     updateCliente,
     deleteCliente,
     emprestimos,
+    deleteEmprestimo,
     pagamentos,
     selectedClienteForHistory,
     setSelectedClienteForHistory,
@@ -629,9 +630,24 @@ export const ClientesView: React.FC<ClientesViewProps> = ({ initialOpenNovo }) =
                               (Juros: {emp.juros}% {emp.tipoJuros} • Total: R$ {emp.valorTotal.toLocaleString('pt-BR')})
                             </span>
                           </div>
-                          <span className="rounded bg-amber-500/10 px-2 py-0.5 font-bold text-amber-400 border border-amber-500/30">
-                            {emp.status}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (confirm(`Tem certeza que deseja excluir o empréstimo #${emp.id}? Os indicadores do Painel de Controle serão recalculados.`)) {
+                                  deleteEmprestimo(emp.id);
+                                }
+                              }}
+                              title="Excluir empréstimo inserido por erro"
+                              className="rounded bg-red-950/60 border border-red-500/40 px-2 py-0.5 text-red-300 hover:bg-red-900 transition-all cursor-pointer flex items-center gap-1 text-[10px] font-bold"
+                            >
+                              <Trash2 className="h-3 w-3 text-red-400" />
+                              Excluir
+                            </button>
+                            <span className="rounded bg-amber-500/10 px-2 py-0.5 font-bold text-amber-400 border border-amber-500/30">
+                              {emp.status}
+                            </span>
+                          </div>
                         </div>
 
                         {/* Installment detail */}
