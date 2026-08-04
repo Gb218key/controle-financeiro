@@ -10,7 +10,8 @@ import {
   Parcela,
   StatusParcela,
   StatusCliente,
-  TipoJuros
+  TipoJuros,
+  Periodicidade
 } from '../types';
 import {
   initialClientes,
@@ -27,6 +28,7 @@ interface SimularEmprestimoResult {
   valorEmprestado: number;
   jurosPercentual: number;
   tipoJuros: TipoJuros;
+  periodicidade: Periodicidade;
   valorTotalJuros: number;
   valorTotal: number;
   parcelasCount: number;
@@ -57,6 +59,7 @@ interface AppContextType {
     valorEmprestado: number;
     juros: number;
     tipoJuros: TipoJuros;
+    periodicidade?: Periodicidade;
     parcelasCount: number;
     dataEmprestimo: string;
     vencimento: string;
@@ -76,7 +79,8 @@ interface AppContextType {
     taxaPercentual: number,
     parcelasCount: number,
     tipoJuros: TipoJuros,
-    dataVencimentoInicial: string
+    dataVencimentoInicial: string,
+    periodicidade?: Periodicidade
   ) => SimularEmprestimoResult;
 
   marcarNotificacaoLida: (id: string) => void;
@@ -220,7 +224,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     taxaPercentual: number,
     parcelasCount: number,
     tipoJuros: TipoJuros,
-    dataVencimentoInicial: string
+    dataVencimentoInicial: string,
+    periodicidade: Periodicidade = 'Mensal'
   ): SimularEmprestimoResult => {
     let valorTotalJuros = 0;
     let valorTotal = 0;
@@ -230,16 +235,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const numParcelas = Math.max(1, Number(parcelasCount) || 1);
 
     if (tipoJuros === 'Fixo') {
-      // Juros Fixo: Taxa fixa total sobre o empréstimo (ex: 75,5% sobre R$400 = R$302 juros => Total R$702)
+      // Juros Fixo: Taxa fixa total sobre o empréstimo
       valorTotalJuros = numValor * (numTaxa / 100);
       valorTotal = numValor + valorTotalJuros;
     } else if (tipoJuros === 'Simples') {
-      // Juros simples: Se 1 parcela, taxa direta (400 * 75.5% = 302 => Total 702). Se N parcelas, taxa * N
-      valorTotalJuros = numValor * (numTaxa / 100) * numParcelas;
+      if (periodicidade === 'Diário') {
+        // Para diárias, a taxa é o percentual do contrato dividido/distribuído no período
+        valorTotalJuros = numValor * (numTaxa / 100);
+      } else {
+        valorTotalJuros = numValor * (numTaxa / 100) * numParcelas;
+      }
       valorTotal = numValor + valorTotalJuros;
     } else {
       // Composto M = P * (1 + i)^n
-      const factor = Math.pow(1 + numTaxa / 100, numParcelas);
+      const periods = periodicidade === 'Diário' ? 1 : numParcelas;
+      const factor = Math.pow(1 + numTaxa / 100, periods);
       valorTotal = numValor * factor;
       valorTotalJuros = valorTotal - numValor;
     }
@@ -249,12 +259,26 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const tabelaParcelas: Omit<Parcela, 'id'>[] = [];
     let saldoDevedorAcumulado = valorTotal;
 
-    const dtBase = new Date(dataVencimentoInicial || new Date());
+    const dateStr = dataVencimentoInicial || new Date().toISOString().split('T')[0];
+    const [vYear, vMonth, vDay] = dateStr.split('-').map((n) => parseInt(n, 10));
 
     for (let i = 1; i <= numParcelas; i++) {
-      const dt = new Date(dtBase);
-      dt.setMonth(dt.getMonth() + (i - 1));
-      const vencimento = dt.toISOString().split('T')[0];
+      const dt = new Date(vYear || new Date().getFullYear(), (vMonth || 1) - 1, vDay || 1);
+
+      if (periodicidade === 'Diário') {
+        dt.setDate(dt.getDate() + (i - 1));
+      } else if (periodicidade === 'Semanal') {
+        dt.setDate(dt.getDate() + (i - 1) * 7);
+      } else if (periodicidade === 'Quinzenal') {
+        dt.setDate(dt.getDate() + (i - 1) * 15);
+      } else {
+        dt.setMonth(dt.getMonth() + (i - 1));
+      }
+
+      const yyyy = dt.getFullYear();
+      const mm = String(dt.getMonth() + 1).padStart(2, '0');
+      const dd = String(dt.getDate()).padStart(2, '0');
+      const vencimento = `${yyyy}-${mm}-${dd}`;
 
       const jurosParcela = valorTotalJuros / numParcelas;
       const amortizacaoParcela = numValor / numParcelas;
@@ -276,6 +300,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       valorEmprestado: numValor,
       jurosPercentual: numTaxa,
       tipoJuros,
+      periodicidade,
       valorTotalJuros: Math.round(valorTotalJuros * 100) / 100,
       valorTotal: Math.round(valorTotal * 100) / 100,
       parcelasCount: numParcelas,
@@ -329,17 +354,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     valorEmprestado: number;
     juros: number;
     tipoJuros: TipoJuros;
+    periodicidade?: Periodicidade;
     parcelasCount: number;
     dataEmprestimo: string;
     vencimento: string;
     observacoes?: string;
   }): string => {
+    const periodicidade = data.periodicidade || 'Mensal';
     const sim = simularEmprestimo(
       data.valorEmprestado,
       data.juros,
       data.parcelasCount,
       data.tipoJuros,
-      data.vencimento
+      data.vencimento,
+      periodicidade
     );
 
     const empId = `emp-${Date.now()}`;
@@ -355,6 +383,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       valorEmprestado: data.valorEmprestado,
       juros: data.juros,
       tipoJuros: data.tipoJuros,
+      periodicidade,
       valorTotal: sim.valorTotal,
       parcelasCount: data.parcelasCount,
       valorParcela: sim.valorParcela,

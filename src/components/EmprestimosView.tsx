@@ -21,7 +21,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { TipoJuros, StatusEmprestimo, Emprestimo } from '../types';
+import { TipoJuros, StatusEmprestimo, Emprestimo, Periodicidade } from '../types';
 
 interface EmprestimosViewProps {
   initialOpenNovo?: boolean;
@@ -55,15 +55,14 @@ export const EmprestimosView: React.FC<EmprestimosViewProps> = ({ initialOpenNov
   const [tipoJuros, setTipoJuros] = useState<TipoJuros>(
     configuracoes.tipoJurosPadrao || 'Simples'
   );
-  const [parcelasCount, setParcelasCount] = useState<number>(1);
+  const [periodicidade, setPeriodicidade] = useState<Periodicidade>('Diário');
+  const [parcelasCount, setParcelasCount] = useState<number>(20);
   const [dataEmprestimo, setDataEmprestimo] = useState<string>(
     new Date().toISOString().split('T')[0]
   );
-  const [vencimentoInicial, setVencimentoInicial] = useState<string>(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 30);
-    return d.toISOString().split('T')[0];
-  });
+  const [vencimentoInicial, setVencimentoInicial] = useState<string>(
+    new Date().toISOString().split('T')[0]
+  );
   const [observacoes, setObservacoes] = useState<string>('');
 
   const valor = Math.max(0, parseFloat(valorInput.replace(',', '.')) || 0);
@@ -71,16 +70,16 @@ export const EmprestimosView: React.FC<EmprestimosViewProps> = ({ initialOpenNov
 
   // Simulation result state
   const [simulacao, setSimulacao] = useState<ReturnType<typeof simularEmprestimo> | null>(() =>
-    simularEmprestimo(400, 75.5, 1, 'Simples', new Date().toISOString().split('T')[0])
+    simularEmprestimo(400, 20, 20, 'Simples', new Date().toISOString().split('T')[0], 'Diário')
   );
 
   // Auto-calculate simulation on form parameter changes
   React.useEffect(() => {
     if (valor > 0 && taxa >= 0 && parcelasCount > 0) {
-      const res = simularEmprestimo(valor, taxa, parcelasCount, tipoJuros, vencimentoInicial);
+      const res = simularEmprestimo(valor, taxa, parcelasCount, tipoJuros, vencimentoInicial, periodicidade);
       setSimulacao(res);
     }
-  }, [valor, taxa, parcelasCount, tipoJuros, vencimentoInicial]);
+  }, [valor, taxa, parcelasCount, tipoJuros, vencimentoInicial, periodicidade]);
 
   // Payment Modal state
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -99,7 +98,7 @@ export const EmprestimosView: React.FC<EmprestimosViewProps> = ({ initialOpenNov
   const handleCalcular = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!valor || !taxa || !parcelasCount) return;
-    const res = simularEmprestimo(valor, taxa, parcelasCount, tipoJuros, vencimentoInicial);
+    const res = simularEmprestimo(valor, taxa, parcelasCount, tipoJuros, vencimentoInicial, periodicidade);
     setSimulacao(res);
   };
 
@@ -117,6 +116,7 @@ export const EmprestimosView: React.FC<EmprestimosViewProps> = ({ initialOpenNov
       valorEmprestado: valor,
       juros: taxa,
       tipoJuros,
+      periodicidade,
       parcelasCount,
       dataEmprestimo,
       vencimento: vencimentoInicial,
@@ -261,6 +261,28 @@ export const EmprestimosView: React.FC<EmprestimosViewProps> = ({ initialOpenNov
                 </div>
               </div>
 
+              <div>
+                <label className="block font-semibold text-zinc-300 mb-1">
+                  Frequência de Cobrança *
+                </label>
+                <select
+                  value={periodicidade}
+                  onChange={(e) => {
+                    const p = e.target.value as Periodicidade;
+                    setPeriodicidade(p);
+                    if (p === 'Diário' && vencimentoInicial.split('-')[0] !== new Date().getFullYear().toString()) {
+                      setVencimentoInicial(new Date().toISOString().split('T')[0]);
+                    }
+                  }}
+                  className="w-full rounded-xl border border-amber-500/40 bg-zinc-950 px-3 py-2 font-bold text-amber-300 focus:border-amber-400 focus:outline-none"
+                >
+                  <option value="Diário">📆 Diário / Diária (Cobrança por Dia)</option>
+                  <option value="Semanal">🗓️ Semanal (Cobrança por Semana)</option>
+                  <option value="Quinzenal">📆 Quinzenal (A cada 15 dias)</option>
+                  <option value="Mensal">📅 Mensal (Cobrança por Mês)</option>
+                </select>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-zinc-300 mb-1">
@@ -273,20 +295,21 @@ export const EmprestimosView: React.FC<EmprestimosViewProps> = ({ initialOpenNov
                   >
                     <option value="Simples">Simples (Mercado)</option>
                     <option value="Composto">Composto</option>
-                    <option value="Fixo">Fixo Mensal</option>
+                    <option value="Fixo">Fixo</option>
                   </select>
                 </div>
 
                 <div>
                   <label className="block font-semibold text-zinc-300 mb-1">
-                    Nº de Parcelas *
+                    {periodicidade === 'Diário' ? 'Nº de Dias / Diárias *' : 'Nº de Parcelas *'}
                   </label>
                   <input
                     type="number"
                     min={1}
-                    max={60}
+                    max={365}
                     value={parcelasCount}
                     onChange={(e) => setParcelasCount(Number(e.target.value))}
+                    placeholder={periodicidade === 'Diário' ? 'Ex: 20 dias' : 'Ex: 3'}
                     className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 font-bold text-zinc-100 focus:border-amber-400 focus:outline-none"
                   />
                 </div>
@@ -307,7 +330,7 @@ export const EmprestimosView: React.FC<EmprestimosViewProps> = ({ initialOpenNov
 
                 <div>
                   <label className="block font-semibold text-zinc-300 mb-1">
-                    Vencimento 1ª Parcela *
+                    {periodicidade === 'Diário' ? 'Início da Cobrança Diária *' : 'Vencimento 1ª Parcela *'}
                   </label>
                   <input
                     type="date"
@@ -349,17 +372,27 @@ export const EmprestimosView: React.FC<EmprestimosViewProps> = ({ initialOpenNov
               <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
                 <h3 className="text-sm font-bold text-zinc-100 flex items-center gap-2">
                   <DollarSign className="h-5 w-5 text-amber-400" />
-                  Resultado da Simulação
+                  Resultado da Simulação {periodicidade === 'Diário' && '(Cobrança Diária)'}
                 </h3>
                 {simulacao && (
                   <span className="rounded-full bg-amber-500/10 px-3 py-1 text-xs font-bold text-amber-400 border border-amber-500/20">
-                    {simulacao.parcelasCount}x de {formatBRL(simulacao.valorParcela)}
+                    {simulacao.parcelasCount}x de {formatBRL(simulacao.valorParcela)}{periodicidade === 'Diário' ? '/dia' : ''}
                   </span>
                 )}
               </div>
 
               {simulacao && (
                 <>
+                  {/* Daily Highlight Banner */}
+                  {periodicidade === 'Diário' && (
+                    <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-amber-300 font-semibold">
+                        <Calendar className="h-4 w-4 text-amber-400 shrink-0" />
+                        <span>Plano Diário: Cobrança diária consecutiva de <strong>{formatBRL(simulacao.valorParcela)}</strong> por <strong>{simulacao.parcelasCount} dias</strong></span>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Summary Cards */}
                   <div className="mt-4 grid grid-cols-3 gap-3">
                     <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3 text-xs">
@@ -389,9 +422,9 @@ export const EmprestimosView: React.FC<EmprestimosViewProps> = ({ initialOpenNov
                     <table className="w-full text-left text-xs">
                       <thead>
                         <tr className="border-b border-zinc-800 bg-zinc-950 text-zinc-400 font-semibold text-[10px] uppercase">
-                          <th className="py-2.5 px-3">Nº Parcela</th>
-                          <th className="py-2.5 px-3">Vencimento</th>
-                          <th className="py-2.5 px-3">Valor Parcela</th>
+                          <th className="py-2.5 px-3">{periodicidade === 'Diário' ? 'Dia / Cobrança' : 'Nº Parcela'}</th>
+                          <th className="py-2.5 px-3">Data Vencimento</th>
+                          <th className="py-2.5 px-3">{periodicidade === 'Diário' ? 'Valor Diário' : 'Valor Parcela'}</th>
                           <th className="py-2.5 px-3">Juros</th>
                           <th className="py-2.5 px-3">Amortização</th>
                         </tr>
@@ -399,7 +432,9 @@ export const EmprestimosView: React.FC<EmprestimosViewProps> = ({ initialOpenNov
                       <tbody className="divide-y divide-zinc-800/60">
                         {simulacao.tabelaParcelas.map((par) => (
                           <tr key={par.numero} className="hover:bg-zinc-800/40">
-                            <td className="py-2 px-3 font-bold text-amber-400">#{par.numero}</td>
+                            <td className="py-2 px-3 font-bold text-amber-400">
+                              {periodicidade === 'Diário' ? `Dia #${par.numero}` : `#${par.numero}`}
+                            </td>
                             <td className="py-2 px-3 text-zinc-300">{par.vencimento}</td>
                             <td className="py-2 px-3 font-extrabold text-zinc-100">
                               {formatBRL(par.valorParcela)}
@@ -551,9 +586,14 @@ export const EmprestimosView: React.FC<EmprestimosViewProps> = ({ initialOpenNov
                         </span>
                       </div>
                       <div>
-                        <span className="text-zinc-500 block">Plano</span>
+                        <span className="text-zinc-500 block">Plano / Cobrança</span>
                         <span className="font-bold text-zinc-200">
-                          {emp.parcelasCount}x de {formatBRL(emp.valorParcela)}
+                          {emp.parcelasCount}x de {formatBRL(emp.valorParcela)}{emp.periodicidade === 'Diário' ? '/dia' : ''}
+                          {emp.periodicidade && (
+                            <span className="ml-1 text-[10px] text-amber-400 font-bold bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                              {emp.periodicidade}
+                            </span>
+                          )}
                         </span>
                       </div>
                     </div>
@@ -561,7 +601,7 @@ export const EmprestimosView: React.FC<EmprestimosViewProps> = ({ initialOpenNov
                     {/* Installments Badges Grid */}
                     <div>
                       <span className="text-[11px] font-bold text-zinc-400 block mb-2">
-                        Detalhamento de Parcelas (Clique para dar Baixa):
+                        {emp.periodicidade === 'Diário' ? 'Detalhamento de Diárias (Clique para dar Baixa):' : 'Detalhamento de Parcelas (Clique para dar Baixa):'}
                       </span>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 text-xs">
@@ -581,7 +621,7 @@ export const EmprestimosView: React.FC<EmprestimosViewProps> = ({ initialOpenNov
                             >
                               <div className="flex items-center justify-between">
                                 <span className="font-bold text-amber-400">
-                                  Parcela #{par.numero}
+                                  {emp.periodicidade === 'Diário' ? `Dia #${par.numero}` : `Parcela #${par.numero}`}
                                 </span>
                                 <span className="text-[10px] text-zinc-400">
                                   Venc: {par.vencimento}

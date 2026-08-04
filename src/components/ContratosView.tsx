@@ -183,7 +183,7 @@ export const ContratosView: React.FC = () => {
                 CLÁUSULA PRIMEIRA - DO OBJETO E VALOR
               </h3>
               <p className="mt-1 text-justify">
-                O(A) CREDOR(A) concede nesta data ao(à) DEVEDOR(A) a quantia em espécie/PIX de <strong>{formatBRL(currentLoan.valorEmprestado)}</strong>, a ser restituído com a taxa de juros de <strong>{currentLoan.juros}% ao mês ({currentLoan.tipoJuros})</strong>, perfazendo o montante total ajustado de <strong>{formatBRL(currentLoan.valorTotal)}</strong>.
+                O(A) CREDOR(A) concede nesta data ao(à) DEVEDOR(A) a quantia em espécie/PIX de <strong>{formatBRL(currentLoan.valorEmprestado)}</strong>, a ser restituído com a taxa de juros de <strong>{currentLoan.juros}% {currentLoan.periodicidade === 'Diário' ? 'no período' : 'ao mês'} ({currentLoan.tipoJuros})</strong>, perfazendo o montante total ajustado de <strong>{formatBRL(currentLoan.valorTotal)}</strong>.
               </p>
             </div>
 
@@ -192,13 +192,13 @@ export const ContratosView: React.FC = () => {
                 CLÁUSULA SEGUNDA - DO PARCELAMENTO E VENCIMENTOS
               </h3>
               <p className="mt-1 text-justify">
-                O valor total será pago em <strong>{currentLoan.parcelasCount} parcela(s)</strong> consecutiva(s) de <strong>{formatBRL(currentLoan.valorParcela)}</strong>, com o vencimento inicial estipulado para o dia <strong>{currentLoan.vencimento}</strong>.
+                O valor total será pago em <strong>{currentLoan.parcelasCount} {currentLoan.periodicidade === 'Diário' ? 'cobrança(s) diária(s)' : 'parcela(s)'}</strong> consecutiva(s) no valor de <strong>{formatBRL(currentLoan.valorParcela)}{currentLoan.periodicidade === 'Diário' ? ' por dia' : ''}</strong>, com o vencimento inicial estipulado para o dia <strong>{currentLoan.vencimento}</strong>.
               </p>
 
-              <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2 font-mono text-[10px] bg-zinc-100 p-3 rounded border border-zinc-300">
+              <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2 font-mono text-[10px] bg-zinc-100 p-3 rounded border border-zinc-300 max-h-48 overflow-y-auto">
                 {currentLoan.parcelas.map((p) => (
                   <div key={p.numero}>
-                    Parcela #{p.numero}: {p.vencimento} - {formatBRL(p.valorParcela)}
+                    {currentLoan.periodicidade === 'Diário' ? `Dia #${p.numero}` : `Parcela #${p.numero}`}: {p.vencimento} - {formatBRL(p.valorParcela)}
                   </div>
                 ))}
               </div>

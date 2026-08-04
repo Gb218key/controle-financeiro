@@ -33,13 +33,15 @@ export interface Parcela {
 
 export type StatusEmprestimo = 'Ativo' | 'Quitado' | 'Atrasado' | 'Cancelado';
 export type TipoJuros = 'Simples' | 'Composto' | 'Fixo';
+export type Periodicidade = 'Diário' | 'Semanal' | 'Quinzenal' | 'Mensal';
 
 export interface Emprestimo {
   id: string;
   clienteID: string;
   valorEmprestado: number;
-  juros: number; // Porcentagem mensal (ex: 10)
+  juros: number; // Porcentagem
   tipoJuros: TipoJuros;
+  periodicidade?: Periodicidade;
   valorTotal: number;
   parcelasCount: number;
   valorParcela: number;
