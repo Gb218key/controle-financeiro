@@ -48,12 +48,14 @@ export const EmprestimosView: React.FC<EmprestimosViewProps> = ({ initialOpenNov
   const [selectedClienteID, setSelectedClienteID] = useState<string>(
     clientes[0]?.id || ''
   );
-  const [valor, setValor] = useState<number>(3000);
-  const [taxa, setTaxa] = useState<number>(configuracoes.taxaJurosPadrao || 10);
+  const [valorInput, setValorInput] = useState<string>('400');
+  const [taxaInput, setTaxaInput] = useState<string>(
+    (configuracoes.taxaJurosPadrao || 10).toString()
+  );
   const [tipoJuros, setTipoJuros] = useState<TipoJuros>(
     configuracoes.tipoJurosPadrao || 'Simples'
   );
-  const [parcelasCount, setParcelasCount] = useState<number>(3);
+  const [parcelasCount, setParcelasCount] = useState<number>(1);
   const [dataEmprestimo, setDataEmprestimo] = useState<string>(
     new Date().toISOString().split('T')[0]
   );
@@ -64,10 +66,21 @@ export const EmprestimosView: React.FC<EmprestimosViewProps> = ({ initialOpenNov
   });
   const [observacoes, setObservacoes] = useState<string>('');
 
+  const valor = Math.max(0, parseFloat(valorInput.replace(',', '.')) || 0);
+  const taxa = Math.max(0, parseFloat(taxaInput.replace(',', '.')) || 0);
+
   // Simulation result state
   const [simulacao, setSimulacao] = useState<ReturnType<typeof simularEmprestimo> | null>(() =>
-    simularEmprestimo(3000, 10, 3, 'Simples', new Date().toISOString().split('T')[0])
+    simularEmprestimo(400, 75.5, 1, 'Simples', new Date().toISOString().split('T')[0])
   );
+
+  // Auto-calculate simulation on form parameter changes
+  React.useEffect(() => {
+    if (valor > 0 && taxa >= 0 && parcelasCount > 0) {
+      const res = simularEmprestimo(valor, taxa, parcelasCount, tipoJuros, vencimentoInicial);
+      setSimulacao(res);
+    }
+  }, [valor, taxa, parcelasCount, tipoJuros, vencimentoInicial]);
 
   // Payment Modal state
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -224,25 +237,25 @@ export const EmprestimosView: React.FC<EmprestimosViewProps> = ({ initialOpenNov
                     Valor Emprestado (R$) *
                   </label>
                   <input
-                    type="number"
-                    min={100}
-                    step={50}
-                    value={valor}
-                    onChange={(e) => setValor(Number(e.target.value))}
+                    type="text"
+                    inputMode="decimal"
+                    value={valorInput}
+                    onChange={(e) => setValorInput(e.target.value)}
+                    placeholder="Ex: 400"
                     className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 font-bold text-amber-300 focus:border-amber-400 focus:outline-none"
                   />
                 </div>
 
                 <div>
                   <label className="block font-semibold text-zinc-300 mb-1">
-                    Taxa Juros (%) Mensal *
+                    Taxa Juros (%) *
                   </label>
                   <input
-                    type="number"
-                    min={0}
-                    step={0.5}
-                    value={taxa}
-                    onChange={(e) => setTaxa(Number(e.target.value))}
+                    type="text"
+                    inputMode="decimal"
+                    value={taxaInput}
+                    onChange={(e) => setTaxaInput(e.target.value)}
+                    placeholder="Ex: 75.5 ou 75,5"
                     className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 font-bold text-amber-300 focus:border-amber-400 focus:outline-none"
                   />
                 </div>

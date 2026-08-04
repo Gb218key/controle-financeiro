@@ -225,32 +225,39 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     let valorTotalJuros = 0;
     let valorTotal = 0;
 
-    if (tipoJuros === 'Simples' || tipoJuros === 'Fixo') {
-      // Juros simples total = valor * (taxa/100) * (parcelasCount / 1 ou pro-rata)
-      // Standard loan practice in market: Taxa mensal * N parcelas
-      valorTotalJuros = valor * (taxaPercentual / 100) * parcelasCount;
-      valorTotal = valor + valorTotalJuros;
+    const numValor = Math.max(0, Number(valor) || 0);
+    const numTaxa = Math.max(0, Number(taxaPercentual) || 0);
+    const numParcelas = Math.max(1, Number(parcelasCount) || 1);
+
+    if (tipoJuros === 'Fixo') {
+      // Juros Fixo: Taxa fixa total sobre o empréstimo (ex: 75,5% sobre R$400 = R$302 juros => Total R$702)
+      valorTotalJuros = numValor * (numTaxa / 100);
+      valorTotal = numValor + valorTotalJuros;
+    } else if (tipoJuros === 'Simples') {
+      // Juros simples: Se 1 parcela, taxa direta (400 * 75.5% = 302 => Total 702). Se N parcelas, taxa * N
+      valorTotalJuros = numValor * (numTaxa / 100) * numParcelas;
+      valorTotal = numValor + valorTotalJuros;
     } else {
       // Composto M = P * (1 + i)^n
-      const factor = Math.pow(1 + taxaPercentual / 100, parcelasCount);
-      valorTotal = valor * factor;
-      valorTotalJuros = valorTotal - valor;
+      const factor = Math.pow(1 + numTaxa / 100, numParcelas);
+      valorTotal = numValor * factor;
+      valorTotalJuros = valorTotal - numValor;
     }
 
-    const valorParcela = parcelasCount > 0 ? valorTotal / parcelasCount : 0;
+    const valorParcela = numParcelas > 0 ? valorTotal / numParcelas : 0;
 
     const tabelaParcelas: Omit<Parcela, 'id'>[] = [];
     let saldoDevedorAcumulado = valorTotal;
 
     const dtBase = new Date(dataVencimentoInicial || new Date());
 
-    for (let i = 1; i <= parcelasCount; i++) {
+    for (let i = 1; i <= numParcelas; i++) {
       const dt = new Date(dtBase);
       dt.setMonth(dt.getMonth() + (i - 1));
       const vencimento = dt.toISOString().split('T')[0];
 
-      const jurosParcela = valorTotalJuros / parcelasCount;
-      const amortizacaoParcela = (valor / parcelasCount);
+      const jurosParcela = valorTotalJuros / numParcelas;
+      const amortizacaoParcela = numValor / numParcelas;
       saldoDevedorAcumulado -= valorParcela;
 
       tabelaParcelas.push({
@@ -266,12 +273,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
 
     return {
-      valorEmprestado: valor,
-      jurosPercentual: taxaPercentual,
+      valorEmprestado: numValor,
+      jurosPercentual: numTaxa,
       tipoJuros,
       valorTotalJuros: Math.round(valorTotalJuros * 100) / 100,
       valorTotal: Math.round(valorTotal * 100) / 100,
-      parcelasCount,
+      parcelasCount: numParcelas,
       valorParcela: Math.round(valorParcela * 100) / 100,
       tabelaParcelas,
     };
