@@ -16,7 +16,8 @@ import {
   CalendarDays,
   Pencil,
   Check,
-  X
+  X,
+  Trash2
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
@@ -29,7 +30,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onOpenNovoCliente,
   onOpenNovoEmprestimo,
 }) => {
-  const { indicadores, emprestimos, clientes, setActiveModule, setSelectedClienteForHistory, updateDinheiroCaixa } = useApp();
+  const { indicadores, emprestimos, clientes, setActiveModule, setSelectedClienteForHistory, updateDinheiroCaixa, deleteEmprestimo } = useApp();
 
   const [isEditingCaixa, setIsEditingCaixa] = useState(false);
   const [novoCaixaInput, setNovoCaixaInput] = useState('');
@@ -308,13 +309,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         {formatBRL(item.valorParcela)}
                       </td>
                       <td className="px-6 py-3.5">{statusMarkup}</td>
-                      <td className="px-6 py-3.5 text-right">
+                      <td className="px-6 py-3.5 text-right flex items-center justify-end gap-1.5">
                         {item.clienteWhatsapp ? (
                           <a
                             href={`https://wa.me/${formatPhoneForWA}?text=${waMsg}`}
                             target="_blank"
                             rel="noreferrer"
-                            className="inline-flex items-center gap-1 rounded bg-green-500/10 border border-green-500/30 px-2.5 py-1 text-[10px] font-bold text-green-400 hover:bg-green-500/20"
+                            className="inline-flex items-center gap-1 rounded bg-green-500/10 border border-green-500/30 px-2.5 py-1 text-[10px] font-bold text-green-400 hover:bg-green-500/20 cursor-pointer"
                           >
                             <Send className="h-3 w-3" />
                             Cobrar
@@ -322,11 +323,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         ) : (
                           <button
                             onClick={() => setActiveModule('Cobranças')}
-                            className="rounded border border-white/20 bg-white/5 px-2.5 py-1 text-[10px] text-white/80 hover:bg-white/10"
+                            className="rounded border border-white/20 bg-white/5 px-2.5 py-1 text-[10px] text-white/80 hover:bg-white/10 cursor-pointer"
                           >
                             Cobrar
                           </button>
                         )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (confirm(`Deseja excluir o empréstimo #${item.emprestimoID}? O saldo do Dashboard e indicadores serão ajustados automaticamente.`)) {
+                              deleteEmprestimo(item.emprestimoID);
+                            }
+                          }}
+                          title="Excluir este empréstimo"
+                          className="p-1 rounded bg-red-950/50 border border-red-500/30 text-red-400 hover:bg-red-900 transition-all cursor-pointer"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
                       </td>
                     </tr>
                   );

@@ -12,12 +12,13 @@ import {
   Search,
   Filter,
   DollarSign,
-  ShieldAlert
+  ShieldAlert,
+  Trash2
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
 export const CobrancasView: React.FC = () => {
-  const { clientes, emprestimos, configuracoes, registrarPagamento } = useApp();
+  const { clientes, emprestimos, configuracoes, registrarPagamento, deleteEmprestimo } = useApp();
   const [copiedPix, setCopiedPix] = useState(false);
   const [filterCategory, setFilterCategory] = useState<'TODOS' | 'ATRASADO' | 'VENCE_HOJE' | 'EM_DIA'>('TODOS');
   const [search, setSearch] = useState('');
@@ -339,10 +340,24 @@ export const CobrancasView: React.FC = () => {
 
                     <button
                       onClick={() => handleOpenPayment(item)}
-                      className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 px-4 py-2 text-xs font-black text-zinc-950 hover:brightness-110 transition-all shadow-md"
+                      className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 px-4 py-2 text-xs font-black text-zinc-950 hover:brightness-110 transition-all shadow-md cursor-pointer"
                     >
                       <DollarSign className="h-4 w-4" />
                       <span>Dar Baixa</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (confirm(`Tem certeza que deseja excluir o empréstimo #${item.emprestimoID}? O empréstimo será removido e o Painel de Controle será recalculado.`)) {
+                          deleteEmprestimo(item.emprestimoID);
+                        }
+                      }}
+                      title="Excluir empréstimo lançado por erro"
+                      className="p-2 rounded-xl border border-red-500/30 bg-red-950/40 text-red-300 hover:bg-red-900 transition-all cursor-pointer flex items-center gap-1 text-xs font-semibold"
+                    >
+                      <Trash2 className="h-4 w-4 text-red-400" />
+                      <span className="hidden sm:inline">Excluir</span>
                     </button>
                   </div>
                 </div>
