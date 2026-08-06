@@ -22,7 +22,125 @@ import {
   initialPerfil,
   initialUsuarios,
 } from '../data/mockData';
-import { getEncryptedStorage, setEncryptedStorage } from '../utils/crypto';
+import { getEncryptedStorage, setEncryptedStorage, decryptData } from '../utils/crypto';
+
+function mergeArrayById<T extends { id: string }>(arr1: T[] = [], arr2: T[] = []): T[] {
+  const map = new Map<string, T>();
+  if (Array.isArray(arr1)) {
+    arr1.forEach((item) => {
+      if (item && item.id) map.set(item.id, item);
+    });
+  }
+  if (Array.isArray(arr2)) {
+    arr2.forEach((item) => {
+      if (item && item.id) map.set(item.id, item);
+    });
+  }
+  return Array.from(map.values());
+}
+
+function scanAndRecoverAllLocalStorageKeys() {
+  const recoveredClientes: Cliente[] = [];
+  const recoveredEmprestimos: Emprestimo[] = [];
+  const recoveredPagamentos: Pagamento[] = [];
+  const recoveredNotificacoes: Notificacao[] = [];
+  let recoveredConfig: Partial<ConfiguracoesApp> = {};
+  const recoveredUsuarios: PerfilUsuario[] = [];
+
+  if (typeof window === 'undefined' || !window.localStorage) {
+    return {
+      clientes: recoveredClientes,
+      emprestimos: recoveredEmprestimos,
+      pagamentos: recoveredPagamentos,
+      notificacoes: recoveredNotificacoes,
+      configuracoes: recoveredConfig,
+      usuarios: recoveredUsuarios,
+    };
+  }
+
+  try {
+    const keys = Object.keys(localStorage);
+    for (const key of keys) {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+
+      let parsed: any = null;
+      try {
+        parsed = decryptData(raw, null);
+      } catch {
+        try {
+          parsed = JSON.parse(raw);
+        } catch {}
+      }
+
+      if (!parsed) continue;
+
+      if (Array.isArray(parsed)) {
+        for (const item of parsed) {
+          if (!item || typeof item !== 'object') continue;
+
+          if (item.id && (item.nome || item.cpf)) {
+            if (!recoveredClientes.some((c) => c.id === item.id)) {
+              recoveredClientes.push(item as Cliente);
+            }
+          } else if (item.id && item.clienteID && item.valorEmprestado !== undefined) {
+            if (!recoveredEmprestimos.some((e) => e.id === item.id)) {
+              recoveredEmprestimos.push(item as Emprestimo);
+            }
+          } else if (item.id && item.emprestimoID && item.valorPago !== undefined) {
+            if (!recoveredPagamentos.some((p) => p.id === item.id)) {
+              recoveredPagamentos.push(item as Pagamento);
+            }
+          } else if (item.id && item.titulo && item.mensagem) {
+            if (!recoveredNotificacoes.some((n) => n.id === item.id)) {
+              recoveredNotificacoes.push(item as Notificacao);
+            }
+          } else if (item.id && (item.pinSeguranca || item.cargo)) {
+            if (!recoveredUsuarios.some((u) => u.id === item.id)) {
+              recoveredUsuarios.push(item as PerfilUsuario);
+            }
+          }
+        }
+      } else if (typeof parsed === 'object') {
+        if (Array.isArray(parsed.clientes)) {
+          parsed.clientes.forEach((c: any) => {
+            if (c && c.id && !recoveredClientes.some((x) => x.id === c.id)) {
+              recoveredClientes.push(c);
+            }
+          });
+        }
+        if (Array.isArray(parsed.emprestimos)) {
+          parsed.emprestimos.forEach((e: any) => {
+            if (e && e.id && !recoveredEmprestimos.some((x) => x.id === e.id)) {
+              recoveredEmprestimos.push(e);
+            }
+          });
+        }
+        if (Array.isArray(parsed.pagamentos)) {
+          parsed.pagamentos.forEach((p: any) => {
+            if (p && p.id && !recoveredPagamentos.some((x) => x.id === p.id)) {
+              recoveredPagamentos.push(p);
+            }
+          });
+        }
+        if (parsed.configuracoes && typeof parsed.configuracoes === 'object') {
+          recoveredConfig = { ...recoveredConfig, ...parsed.configuracoes };
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Data recovery scan error:', err);
+  }
+
+  return {
+    clientes: recoveredClientes,
+    emprestimos: recoveredEmprestimos,
+    pagamentos: recoveredPagamentos,
+    notificacoes: recoveredNotificacoes,
+    configuracoes: recoveredConfig,
+    usuarios: recoveredUsuarios,
+  };
+}
 
 interface SimularEmprestimoResult {
   valorEmprestado: number;
@@ -109,6 +227,7 @@ interface AppContextType {
   // Cross-device sync status
   syncStatus: { isOnline: boolean; lastSyncTime: string };
   manualSync: () => Promise<void>;
+  executarRecuperacaoProfundaData: () => { clientesRecuperados: number; emprestimosRecuperados: number; totalLocalEncontrado: number };
 
   // Dashboard Metrics
   indicadores: {
@@ -174,6 +293,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     lastSyncTime: 'Iniciando...',
   });
 
+  // Auto recovery on startup
+  useEffect(() => {
+    const rec = scanAndRecoverAllLocalStorageKeys();
+    if (rec.clientes.length > 0) {
+      setClientes((prev) => mergeArrayById(prev, rec.clientes));
+    }
+    if (rec.emprestimos.length > 0) {
+      setEmprestimos((prev) => mergeArrayById(prev, rec.emprestimos));
+    }
+    if (rec.pagamentos.length > 0) {
+      setPagamentos((prev) => mergeArrayById(prev, rec.pagamentos));
+    }
+    if (rec.notificacoes.length > 0) {
+      setNotificacoes((prev) => mergeArrayById(prev, rec.notificacoes));
+    }
+  }, []);
+
   const fetchSharedState = React.useCallback(async () => {
     try {
       const res = await fetch('/api/data');
@@ -205,14 +341,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           setSyncStatus({ isOnline: true, lastSyncTime: new Date().toLocaleTimeString('pt-BR') });
         }
       } else if (data.lastUpdated && data.lastUpdated > lastServerTimestampRef.current) {
-        // Server has newer changes from another device!
+        // Server has newer changes! Merge with local state to preserve everything
         isUpdatingFromRemoteRef.current = true;
-        if (Array.isArray(data.clientes)) setClientes(data.clientes);
-        if (Array.isArray(data.emprestimos)) setEmprestimos(data.emprestimos);
-        if (Array.isArray(data.pagamentos)) setPagamentos(data.pagamentos);
-        if (Array.isArray(data.notificacoes)) setNotificacoes(data.notificacoes);
-        if (data.configuracoes) setConfiguracoes(data.configuracoes);
-        if (Array.isArray(data.usuarios)) setUsuarios(data.usuarios);
+        if (Array.isArray(data.clientes)) setClientes((prev) => mergeArrayById(prev, data.clientes));
+        if (Array.isArray(data.emprestimos)) setEmprestimos((prev) => mergeArrayById(prev, data.emprestimos));
+        if (Array.isArray(data.pagamentos)) setPagamentos((prev) => mergeArrayById(prev, data.pagamentos));
+        if (Array.isArray(data.notificacoes)) setNotificacoes((prev) => mergeArrayById(prev, data.notificacoes));
+        if (data.configuracoes) setConfiguracoes((prev) => ({ ...prev, ...data.configuracoes }));
+        if (Array.isArray(data.usuarios)) setUsuarios((prev) => mergeArrayById(prev, data.usuarios));
         if (data.perfil) setPerfil(data.perfil);
 
         lastServerTimestampRef.current = data.lastUpdated;
@@ -224,11 +360,53 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       console.warn('Sync server connection warning:', err);
       setSyncStatus((prev) => ({ ...prev, isOnline: false }));
     }
-  }, []);
+  }, [clientes, emprestimos, pagamentos, notificacoes, configuracoes, usuarios, perfil]);
 
   const manualSync = async () => {
     await fetchSharedState();
   };
+
+  const executarRecuperacaoProfundaData = React.useCallback(() => {
+    const rec = scanAndRecoverAllLocalStorageKeys();
+    let countClientesBefore = 0;
+    let countClientesAfter = 0;
+    let countEmpBefore = 0;
+    let countEmpAfter = 0;
+
+    setClientes((prev) => {
+      countClientesBefore = prev.length;
+      const merged = mergeArrayById(prev, rec.clientes);
+      countClientesAfter = merged.length;
+      return merged;
+    });
+
+    setEmprestimos((prev) => {
+      countEmpBefore = prev.length;
+      const merged = mergeArrayById(prev, rec.emprestimos);
+      countEmpAfter = merged.length;
+      return merged;
+    });
+
+    if (rec.pagamentos.length > 0) {
+      setPagamentos((prev) => mergeArrayById(prev, rec.pagamentos));
+    }
+    if (rec.notificacoes.length > 0) {
+      setNotificacoes((prev) => mergeArrayById(prev, rec.notificacoes));
+    }
+    if (rec.usuarios.length > 0) {
+      setUsuarios((prev) => mergeArrayById(prev, rec.usuarios));
+    }
+
+    setTimeout(() => {
+      fetchSharedState();
+    }, 150);
+
+    return {
+      clientesRecuperados: Math.max(0, countClientesAfter - countClientesBefore),
+      emprestimosRecuperados: Math.max(0, countEmpAfter - countEmpBefore),
+      totalLocalEncontrado: rec.clientes.length + rec.emprestimos.length,
+    };
+  }, [fetchSharedState]);
 
   // Poll server for changes every 2.5 seconds
   useEffect(() => {
@@ -891,6 +1069,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setSelectedEmprestimoForContract,
         syncStatus,
         manualSync,
+        executarRecuperacaoProfundaData,
         indicadores,
       }}
     >

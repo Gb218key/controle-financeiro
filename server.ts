@@ -40,10 +40,46 @@ async function startServer() {
   // Update shared database
   app.post('/api/data', (req, res) => {
     try {
-      const payload = req.body;
-      payload.lastUpdated = Date.now();
-      fs.writeFileSync(DATA_FILE, JSON.stringify(payload, null, 2), 'utf-8');
-      return res.json({ success: true, lastUpdated: payload.lastUpdated });
+      const payload = req.body || {};
+      let existingData: any = {};
+      if (fs.existsSync(DATA_FILE)) {
+        try {
+          const raw = fs.readFileSync(DATA_FILE, 'utf-8');
+          existingData = JSON.parse(raw);
+        } catch {
+          existingData = {};
+        }
+      }
+
+      // Smart deduplicating merge helper
+      const mergeArrayById = (existingArr: any[] = [], incomingArr: any[] = []) => {
+        const map = new Map<string, any>();
+        if (Array.isArray(existingArr)) {
+          existingArr.forEach((item) => {
+            if (item && item.id) map.set(item.id, item);
+          });
+        }
+        if (Array.isArray(incomingArr)) {
+          incomingArr.forEach((item) => {
+            if (item && item.id) map.set(item.id, item);
+          });
+        }
+        return Array.from(map.values());
+      };
+
+      const mergedPayload = {
+        clientes: mergeArrayById(existingData.clientes, payload.clientes),
+        emprestimos: mergeArrayById(existingData.emprestimos, payload.emprestimos),
+        pagamentos: mergeArrayById(existingData.pagamentos, payload.pagamentos),
+        notificacoes: mergeArrayById(existingData.notificacoes, payload.notificacoes),
+        configuracoes: { ...existingData.configuracoes, ...payload.configuracoes },
+        usuarios: mergeArrayById(existingData.usuarios, payload.usuarios),
+        perfil: payload.perfil || existingData.perfil,
+        lastUpdated: Date.now(),
+      };
+
+      fs.writeFileSync(DATA_FILE, JSON.stringify(mergedPayload, null, 2), 'utf-8');
+      return res.json({ success: true, lastUpdated: mergedPayload.lastUpdated, data: mergedPayload });
     } catch (err) {
       console.error('Error writing store.json:', err);
       return res.status(500).json({ error: 'Failed to save shared data' });

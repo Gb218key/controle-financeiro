@@ -26,6 +26,7 @@ export const ConfiguracoesView: React.FC = () => {
     updateConfiguracoes,
     exportarBackupJson,
     importarBackupJson,
+    executarRecuperacaoProfundaData,
   } = useApp();
 
   const [nomeEmpresa, setNomeEmpresa] = useState(configuracoes.nomeEmpresa);
@@ -377,7 +378,7 @@ export const ConfiguracoesView: React.FC = () => {
               <button
                 type="button"
                 onClick={exportarBackupJson}
-                className="flex w-full items-center justify-center gap-2 rounded-xl border border-amber-500/40 bg-zinc-950 py-2.5 text-xs font-bold text-amber-300 hover:bg-amber-500/10"
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-amber-500/40 bg-zinc-950 py-2.5 text-xs font-bold text-amber-300 hover:bg-amber-500/10 cursor-pointer"
               >
                 <Download className="h-4 w-4" />
                 <span>Exportar Backup (JSON)</span>
@@ -394,8 +395,31 @@ export const ConfiguracoesView: React.FC = () => {
                 />
               </label>
 
+              <button
+                type="button"
+                onClick={() => {
+                  const result = executarRecuperacaoProfundaData();
+                  if (result.clientesRecuperados > 0 || result.emprestimosRecuperados > 0) {
+                    setImportStatus(
+                      `Recuperação Concluída! ${result.clientesRecuperados} cliente(s) e ${result.emprestimosRecuperados} empréstimo(s) restaurados com sucesso!`
+                    );
+                  } else if (result.totalLocalEncontrado > 0) {
+                    setImportStatus(
+                      `Todos os ${result.totalLocalEncontrado} registro(s) locais já estão ativos e sincronizados!`
+                    );
+                  } else {
+                    setImportStatus('Verificação concluída: Seus dados estão 100% atualizados.');
+                  }
+                  setTimeout(() => setImportStatus(null), 6000);
+                }}
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-950/30 py-2.5 text-xs font-bold text-emerald-300 hover:bg-emerald-900/40 cursor-pointer"
+              >
+                <Database className="h-4 w-4" />
+                <span>Escaneamento & Recuperação Profunda de Dados</span>
+              </button>
+
               {importStatus && (
-                <div className="text-xs font-bold text-amber-400 text-center pt-2">
+                <div className="text-xs font-bold text-amber-400 text-center pt-2 bg-amber-950/30 border border-amber-500/30 p-2.5 rounded-xl">
                   {importStatus}
                 </div>
               )}
