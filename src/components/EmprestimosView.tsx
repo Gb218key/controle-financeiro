@@ -68,6 +68,17 @@ export const EmprestimosView: React.FC<EmprestimosViewProps> = ({ initialOpenNov
   const valor = Math.max(0, parseFloat(valorInput.replace(',', '.')) || 0);
   const taxa = Math.max(0, parseFloat(taxaInput.replace(',', '.')) || 0);
 
+  // Auto-sync selected client if list updates
+  React.useEffect(() => {
+    if ((!selectedClienteID || selectedClienteID === '') && clientes.length > 0) {
+      setSelectedClienteID(clientes[0].id);
+    }
+  }, [clientes, selectedClienteID]);
+
+  // Alert and status banners instead of native window.alert
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
   // Simulation result state
   const [simulacao, setSimulacao] = useState<ReturnType<typeof simularEmprestimo> | null>(() =>
     simularEmprestimo(400, 20, 20, 'Simples', new Date().toISOString().split('T')[0], 'Diário')
@@ -102,17 +113,36 @@ export const EmprestimosView: React.FC<EmprestimosViewProps> = ({ initialOpenNov
     setSimulacao(res);
   };
 
-  const handleSalvarEmprestimo = () => {
-    if (!selectedClienteID) {
-      alert('Selecione um cliente.');
+  const handleSalvarEmprestimo = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setErrorMsg(null);
+    setSuccessMsg(null);
+
+    const targetCliente = clientes.find((c) => c.id === selectedClienteID) || clientes[0];
+
+    if (!targetCliente) {
+      setErrorMsg('Por favor, cadastre ou selecione um cliente antes de cadastrar o empréstimo.');
       return;
     }
-    if (!simulacao) {
-      handleCalcular();
+
+    if (!valor || valor <= 0) {
+      setErrorMsg('Informe um valor de empréstimo válido.');
+      return;
     }
 
+    const currentSim =
+      simulacao ||
+      simularEmprestimo(
+        valor,
+        taxa,
+        parcelasCount,
+        tipoJuros,
+        vencimentoInicial,
+        periodicidade
+      );
+
     const empId = addEmprestimo({
-      clienteID: selectedClienteID,
+      clienteID: targetCliente.id,
       valorEmprestado: valor,
       juros: taxa,
       tipoJuros,
@@ -123,8 +153,36 @@ export const EmprestimosView: React.FC<EmprestimosViewProps> = ({ initialOpenNov
       observacoes,
     });
 
-    alert('Empréstimo cadastrado e contrato gerado com sucesso!');
-    setActiveTab('LISTA');
+    const newLoanObj: Emprestimo = {
+      id: empId,
+      clienteID: targetCliente.id,
+      valorEmprestado: valor,
+      juros: taxa,
+      tipoJuros,
+      periodicidade,
+      valorTotal: currentSim.valorTotal,
+      parcelasCount,
+      valorParcela: currentSim.valorParcela,
+      dataEmprestimo,
+      vencimento: vencimentoInicial,
+      status: 'Ativo',
+      observacoes,
+      parcelas: currentSim.tabelaParcelas.map((p, idx) => ({
+        ...p,
+        id: `par-${empId}-${idx + 1}`,
+      })),
+      createdAt: new Date().toISOString().split('T')[0],
+    };
+    setSelectedEmprestimoForContract(newLoanObj);
+
+    setSuccessMsg(
+      `Empréstimo ${periodicidade} (R$ ${valor.toLocaleString('pt-BR')}) para ${targetCliente.nome} cadastrado com sucesso!`
+    );
+
+    setTimeout(() => {
+      setSuccessMsg(null);
+      setActiveTab('LISTA');
+    }, 1500);
   };
 
   const openPagamentoModal = (emp: Emprestimo, parcelaNum: number) => {
@@ -270,8 +328,10 @@ export const EmprestimosView: React.FC<EmprestimosViewProps> = ({ initialOpenNov
                   onChange={(e) => {
                     const p = e.target.value as Periodicidade;
                     setPeriodicidade(p);
-                    if (p === 'Diário' && vencimentoInicial.split('-')[0] !== new Date().getFullYear().toString()) {
-                      setVencimentoInicial(new Date().toISOString().split('T')[0]);
+                    if (p === 'Quinzenal' && (parcelasCount === 20 || parcelasCount > 12)) {
+                      setParcelasCount(2);
+                    } else if (p === 'Diário' && parcelasCount <= 4) {
+                      setParcelasCount(20);
                     }
                   }}
                   className="w-full rounded-xl border border-amber-500/40 bg-zinc-950 px-3 py-2 font-bold text-amber-300 focus:border-amber-400 focus:outline-none"
@@ -450,6 +510,21 @@ export const EmprestimosView: React.FC<EmprestimosViewProps> = ({ initialOpenNov
               )}
             </div>
 
+            {/* Success & Error Status Banners */}
+            {successMsg && (
+              <div className="mt-3 rounded-xl border border-emerald-500/40 bg-emerald-950/40 p-3 text-xs font-bold text-emerald-300 flex items-center gap-2 animate-fadeIn">
+                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
+                <span>{successMsg}</span>
+              </div>
+            )}
+
+            {errorMsg && (
+              <div className="mt-3 rounded-xl border border-red-500/40 bg-red-950/40 p-3 text-xs font-bold text-red-300 flex items-center gap-2 animate-fadeIn">
+                <AlertCircle className="h-4 w-4 shrink-0 text-red-400" />
+                <span>{errorMsg}</span>
+              </div>
+            )}
+
             {/* Action to Save Loan */}
             <div className="mt-6 pt-4 border-t border-zinc-800 flex items-center justify-between">
               <span className="text-xs text-zinc-400">
@@ -457,8 +532,9 @@ export const EmprestimosView: React.FC<EmprestimosViewProps> = ({ initialOpenNov
               </span>
 
               <button
+                type="button"
                 onClick={handleSalvarEmprestimo}
-                className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 px-6 py-2.5 text-xs font-black text-zinc-950 shadow-lg shadow-amber-500/20 transition-all hover:brightness-110"
+                className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 px-6 py-2.5 text-xs font-black text-zinc-950 shadow-lg shadow-amber-500/20 transition-all hover:brightness-110 cursor-pointer"
               >
                 <CheckCircle2 className="h-4 w-4" />
                 <span>Efetivar & Confirmar Empréstimo</span>
