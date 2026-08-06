@@ -7,7 +7,8 @@ import {
   ShieldCheck,
   Search,
   DollarSign,
-  UserPlus
+  UserPlus,
+  RefreshCw
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { NotificationDrawer } from './NotificationDrawer';
@@ -24,6 +25,8 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNovoCliente, onOpenNovoEmp
     perfil,
     configuracoes,
     setIsLoggedIn,
+    syncStatus,
+    manualSync
   } = useApp();
 
   const [showNotifications, setShowNotifications] = useState(false);
@@ -64,10 +67,34 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNovoCliente, onOpenNovoEmp
           </button>
         </div>
 
-        {/* Security / Backup Badge */}
-        <div className="px-4 py-1 border border-[#D4AF37]/50 text-[#D4AF37] text-xs rounded-full uppercase tracking-widest font-mono hidden lg:block">
-          Seguro
-        </div>
+        {/* Cross-Device Live Sync Badge */}
+        <button
+          type="button"
+          onClick={() => manualSync()}
+          title="Sincronização em tempo real entre todos os dispositivos. Clique para atualizar manualmente."
+          className={`flex items-center gap-2 px-3 py-1 border text-xs rounded-full font-mono transition-all cursor-pointer ${
+            syncStatus.isOnline
+              ? 'border-emerald-500/40 bg-emerald-950/30 text-emerald-300 hover:bg-emerald-900/40'
+              : 'border-amber-500/40 bg-amber-950/30 text-amber-300 hover:bg-amber-900/40'
+          }`}
+        >
+          <span className="relative flex h-2 w-2">
+            <span
+              className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                syncStatus.isOnline ? 'bg-emerald-400' : 'bg-amber-400'
+              }`}
+            />
+            <span
+              className={`relative inline-flex rounded-full h-2 w-2 ${
+                syncStatus.isOnline ? 'bg-emerald-500' : 'bg-amber-500'
+              }`}
+            />
+          </span>
+          <span className="hidden sm:inline font-sans font-semibold text-[11px]">
+            {syncStatus.isOnline ? 'Sincronizado Ao Vivo' : 'Off-line'}
+          </span>
+          <RefreshCw className="h-3 w-3 opacity-60 hover:opacity-100" />
+        </button>
 
         {/* Notifications Button */}
         <div className="relative">

@@ -106,6 +106,10 @@ interface AppContextType {
   selectedEmprestimoForContract: Emprestimo | null;
   setSelectedEmprestimoForContract: (emp: Emprestimo | null) => void;
   
+  // Cross-device sync status
+  syncStatus: { isOnline: boolean; lastSyncTime: string };
+  manualSync: () => Promise<void>;
+
   // Dashboard Metrics
   indicadores: {
     dinheiroCaixa: number;
@@ -162,34 +166,122 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [selectedClienteForHistory, setSelectedClienteForHistory] = useState<Cliente | null>(null);
   const [selectedEmprestimoForContract, setSelectedEmprestimoForContract] = useState<Emprestimo | null>(null);
 
-  // Sync state to local storage with AES-256-GCM encryption
+  // Cross-device Sync Engine
+  const lastServerTimestampRef = React.useRef<number>(0);
+  const isUpdatingFromRemoteRef = React.useRef<boolean>(false);
+  const [syncStatus, setSyncStatus] = useState<{ isOnline: boolean; lastSyncTime: string }>({
+    isOnline: true,
+    lastSyncTime: 'Iniciando...',
+  });
+
+  const fetchSharedState = React.useCallback(async () => {
+    try {
+      const res = await fetch('/api/data');
+      if (!res.ok) {
+        setSyncStatus((prev) => ({ ...prev, isOnline: false }));
+        return;
+      }
+      const data = await res.json();
+
+      if (data.empty) {
+        // First run on server: publish current local state
+        const payload = {
+          clientes,
+          emprestimos,
+          pagamentos,
+          notificacoes,
+          configuracoes,
+          usuarios,
+          perfil,
+        };
+        const postRes = await fetch('/api/data', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (postRes.ok) {
+          const postData = await postRes.json();
+          lastServerTimestampRef.current = postData.lastUpdated || Date.now();
+          setSyncStatus({ isOnline: true, lastSyncTime: new Date().toLocaleTimeString('pt-BR') });
+        }
+      } else if (data.lastUpdated && data.lastUpdated > lastServerTimestampRef.current) {
+        // Server has newer changes from another device!
+        isUpdatingFromRemoteRef.current = true;
+        if (Array.isArray(data.clientes)) setClientes(data.clientes);
+        if (Array.isArray(data.emprestimos)) setEmprestimos(data.emprestimos);
+        if (Array.isArray(data.pagamentos)) setPagamentos(data.pagamentos);
+        if (Array.isArray(data.notificacoes)) setNotificacoes(data.notificacoes);
+        if (data.configuracoes) setConfiguracoes(data.configuracoes);
+        if (Array.isArray(data.usuarios)) setUsuarios(data.usuarios);
+        if (data.perfil) setPerfil(data.perfil);
+
+        lastServerTimestampRef.current = data.lastUpdated;
+        setSyncStatus({ isOnline: true, lastSyncTime: new Date().toLocaleTimeString('pt-BR') });
+      } else {
+        setSyncStatus({ isOnline: true, lastSyncTime: new Date().toLocaleTimeString('pt-BR') });
+      }
+    } catch (err) {
+      console.warn('Sync server connection warning:', err);
+      setSyncStatus((prev) => ({ ...prev, isOnline: false }));
+    }
+  }, []);
+
+  const manualSync = async () => {
+    await fetchSharedState();
+  };
+
+  // Poll server for changes every 2.5 seconds
+  useEffect(() => {
+    fetchSharedState();
+    const interval = setInterval(() => {
+      fetchSharedState();
+    }, 2500);
+    return () => clearInterval(interval);
+  }, [fetchSharedState]);
+
+  // Sync state locally (localStorage) and push local edits to server
   useEffect(() => {
     setEncryptedStorage(`${LOCAL_STORAGE_KEY}_clientes`, clientes);
-  }, [clientes]);
-
-  useEffect(() => {
     setEncryptedStorage(`${LOCAL_STORAGE_KEY}_emprestimos`, emprestimos);
-  }, [emprestimos]);
-
-  useEffect(() => {
     setEncryptedStorage(`${LOCAL_STORAGE_KEY}_pagamentos`, pagamentos);
-  }, [pagamentos]);
-
-  useEffect(() => {
     setEncryptedStorage(`${LOCAL_STORAGE_KEY}_notificacoes`, notificacoes);
-  }, [notificacoes]);
-
-  useEffect(() => {
     setEncryptedStorage(`${LOCAL_STORAGE_KEY}_configuracoes`, configuracoes);
-  }, [configuracoes]);
-
-  useEffect(() => {
     setEncryptedStorage(`${LOCAL_STORAGE_KEY}_perfil`, perfil);
-  }, [perfil]);
-
-  useEffect(() => {
     setEncryptedStorage(`${LOCAL_STORAGE_KEY}_usuarios`, usuarios);
-  }, [usuarios]);
+
+    if (isUpdatingFromRemoteRef.current) {
+      isUpdatingFromRemoteRef.current = false;
+      return;
+    }
+
+    const timeout = setTimeout(async () => {
+      try {
+        const payload = {
+          clientes,
+          emprestimos,
+          pagamentos,
+          notificacoes,
+          configuracoes,
+          usuarios,
+          perfil,
+        };
+        const res = await fetch('/api/data', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          const resData = await res.json();
+          lastServerTimestampRef.current = resData.lastUpdated;
+          setSyncStatus({ isOnline: true, lastSyncTime: new Date().toLocaleTimeString('pt-BR') });
+        }
+      } catch (e) {
+        console.warn('Failed to send update to server:', e);
+      }
+    }, 300);
+
+    return () => clearTimeout(timeout);
+  }, [clientes, emprestimos, pagamentos, notificacoes, configuracoes, perfil, usuarios]);
 
   // Recalculate client statuses based on current loans
   useEffect(() => {
@@ -797,6 +889,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setSelectedClienteForHistory,
         selectedEmprestimoForContract,
         setSelectedEmprestimoForContract,
+        syncStatus,
+        manualSync,
         indicadores,
       }}
     >
