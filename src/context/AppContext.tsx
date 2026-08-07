@@ -529,20 +529,35 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const tabelaParcelas: Omit<Parcela, 'id'>[] = [];
     let saldoDevedorAcumulado = valorTotal;
 
-    const dateStr = dataVencimentoInicial || new Date().toISOString().split('T')[0];
-    const [vYear, vMonth, vDay] = dateStr.split('-').map((n) => parseInt(n, 10));
+    const dateStr = (dataVencimentoInicial && dataVencimentoInicial.length === 10)
+      ? dataVencimentoInicial
+      : new Date().toISOString().split('T')[0];
+    const parts = dateStr.split('-').map((n) => parseInt(n, 10));
+    const baseYear = (!isNaN(parts[0]) && parts[0] > 1900) ? parts[0] : new Date().getFullYear();
+    const baseMonth = (!isNaN(parts[1]) && parts[1] >= 1 && parts[1] <= 12) ? parts[1] : new Date().getMonth() + 1;
+    const baseDay = (!isNaN(parts[2]) && parts[2] >= 1 && parts[2] <= 31) ? parts[2] : new Date().getDate();
 
     for (let i = 1; i <= numParcelas; i++) {
-      const dt = new Date(vYear || new Date().getFullYear(), (vMonth || 1) - 1, vDay || 1);
+      let dt: Date;
+      const periodIdx = i - 1;
 
       if (periodicidade === 'Diário') {
-        dt.setDate(dt.getDate() + (i - 1));
+        dt = new Date(baseYear, baseMonth - 1, baseDay + periodIdx);
       } else if (periodicidade === 'Semanal') {
-        dt.setDate(dt.getDate() + (i - 1) * 7);
+        dt = new Date(baseYear, baseMonth - 1, baseDay + periodIdx * 7);
       } else if (periodicidade === 'Quinzenal') {
-        dt.setDate(dt.getDate() + (i - 1) * 15);
+        dt = new Date(baseYear, baseMonth - 1, baseDay + periodIdx * 15);
       } else {
-        dt.setMonth(dt.getMonth() + (i - 1));
+        const targetMonthIndex = baseMonth - 1 + periodIdx;
+        const targetYear = baseYear + Math.floor(targetMonthIndex / 12);
+        const normalizedMonth = ((targetMonthIndex % 12) + 12) % 12;
+        const maxDays = new Date(targetYear, normalizedMonth + 1, 0).getDate();
+        const actualDay = Math.min(baseDay, maxDays);
+        dt = new Date(targetYear, normalizedMonth, actualDay);
+      }
+
+      if (isNaN(dt.getTime())) {
+        dt = new Date();
       }
 
       const yyyy = dt.getFullYear();
@@ -672,7 +687,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       {
         id: `not-${Date.now()}`,
         titulo: 'Novo Empréstimo Concedido',
-        mensagem: `Empréstimo de R$ ${data.valorEmprestado.toLocaleString('pt-BR')} concedido a ${cliente?.nome || 'Cliente'}.`,
+        mensagem: `Empréstimo de R$ ${Number(data.valorEmprestado || 0).toLocaleString('pt-BR')} concedido a ${cliente?.nome || 'Cliente'}.`,
         tipo: 'info',
         data: new Date().toISOString().split('T')[0],
         lida: false,

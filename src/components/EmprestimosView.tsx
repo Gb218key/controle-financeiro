@@ -118,71 +118,78 @@ export const EmprestimosView: React.FC<EmprestimosViewProps> = ({ initialOpenNov
     setErrorMsg(null);
     setSuccessMsg(null);
 
-    const targetCliente = clientes.find((c) => c.id === selectedClienteID) || clientes[0];
+    try {
+      const targetCliente = clientes.find((c) => c.id === selectedClienteID) || clientes[0];
 
-    if (!targetCliente) {
-      setErrorMsg('Por favor, cadastre ou selecione um cliente antes de cadastrar o empréstimo.');
-      return;
-    }
+      if (!targetCliente) {
+        setErrorMsg('Por favor, cadastre ou selecione um cliente antes de cadastrar o empréstimo.');
+        return;
+      }
 
-    if (!valor || valor <= 0) {
-      setErrorMsg('Informe um valor de empréstimo válido.');
-      return;
-    }
+      if (!valor || valor <= 0) {
+        setErrorMsg('Informe um valor de empréstimo válido.');
+        return;
+      }
 
-    const currentSim =
-      simulacao ||
-      simularEmprestimo(
-        valor,
-        taxa,
-        parcelasCount,
+      const currentSim =
+        simulacao ||
+        simularEmprestimo(
+          valor,
+          taxa,
+          parcelasCount,
+          tipoJuros,
+          vencimentoInicial,
+          periodicidade
+        );
+
+      const empId = addEmprestimo({
+        clienteID: targetCliente.id,
+        valorEmprestado: valor,
+        juros: taxa,
         tipoJuros,
-        vencimentoInicial,
-        periodicidade
+        periodicidade,
+        parcelasCount,
+        dataEmprestimo: dataEmprestimo || new Date().toISOString().split('T')[0],
+        vencimento: vencimentoInicial || new Date().toISOString().split('T')[0],
+        observacoes,
+      });
+
+      const newLoanObj: Emprestimo = {
+        id: empId,
+        clienteID: targetCliente.id,
+        valorEmprestado: valor,
+        juros: taxa,
+        tipoJuros,
+        periodicidade,
+        valorTotal: currentSim.valorTotal,
+        parcelasCount,
+        valorParcela: currentSim.valorParcela,
+        dataEmprestimo: dataEmprestimo || new Date().toISOString().split('T')[0],
+        vencimento: vencimentoInicial || new Date().toISOString().split('T')[0],
+        status: 'Ativo',
+        observacoes,
+        parcelas: currentSim.tabelaParcelas.map((p, idx) => ({
+          ...p,
+          id: `par-${empId}-${idx + 1}`,
+        })),
+        createdAt: new Date().toISOString().split('T')[0],
+      };
+      if (typeof setSelectedEmprestimoForContract === 'function') {
+        setSelectedEmprestimoForContract(newLoanObj);
+      }
+
+      setSuccessMsg(
+        `Empréstimo ${periodicidade} (R$ ${valor.toLocaleString('pt-BR')}) para ${targetCliente.nome} cadastrado com sucesso!`
       );
 
-    const empId = addEmprestimo({
-      clienteID: targetCliente.id,
-      valorEmprestado: valor,
-      juros: taxa,
-      tipoJuros,
-      periodicidade,
-      parcelasCount,
-      dataEmprestimo,
-      vencimento: vencimentoInicial,
-      observacoes,
-    });
-
-    const newLoanObj: Emprestimo = {
-      id: empId,
-      clienteID: targetCliente.id,
-      valorEmprestado: valor,
-      juros: taxa,
-      tipoJuros,
-      periodicidade,
-      valorTotal: currentSim.valorTotal,
-      parcelasCount,
-      valorParcela: currentSim.valorParcela,
-      dataEmprestimo,
-      vencimento: vencimentoInicial,
-      status: 'Ativo',
-      observacoes,
-      parcelas: currentSim.tabelaParcelas.map((p, idx) => ({
-        ...p,
-        id: `par-${empId}-${idx + 1}`,
-      })),
-      createdAt: new Date().toISOString().split('T')[0],
-    };
-    setSelectedEmprestimoForContract(newLoanObj);
-
-    setSuccessMsg(
-      `Empréstimo ${periodicidade} (R$ ${valor.toLocaleString('pt-BR')}) para ${targetCliente.nome} cadastrado com sucesso!`
-    );
-
-    setTimeout(() => {
-      setSuccessMsg(null);
-      setActiveTab('LISTA');
-    }, 1500);
+      setTimeout(() => {
+        setSuccessMsg(null);
+        setActiveTab('LISTA');
+      }, 1500);
+    } catch (err: any) {
+      console.error('Erro ao cadastrar empréstimo:', err);
+      setErrorMsg(`Erro ao efetivar empréstimo: ${err?.message || 'Tente novamente.'}`);
+    }
   };
 
   const openPagamentoModal = (emp: Emprestimo, parcelaNum: number) => {
