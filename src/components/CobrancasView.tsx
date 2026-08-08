@@ -57,13 +57,16 @@ export const CobrancasView: React.FC = () => {
   emprestimos.forEach((emp) => {
     if (emp.status !== 'Quitado' && emp.status !== 'Cancelado') {
       const cli = clientes.find((c) => c.id === emp.clienteID);
-      emp.parcelas.forEach((par) => {
+      (emp.parcelas || []).forEach((par) => {
         if (par.status !== 'Pago') {
-          const saldo = par.valorParcela - par.valorPagoTotal;
+          const saldo = (par.valorParcela || 0) - (par.valorPagoTotal || 0);
 
-          const vencDate = new Date(par.vencimento + 'T00:00:00');
-          const diffTime = today.getTime() - vencDate.getTime();
-          const diasAtraso = Math.floor(diffTime / (1000 * 3600 * 24));
+          const vencStr = par.vencimento || '';
+          const vencDate = vencStr ? new Date(vencStr.includes('T') ? vencStr : vencStr + 'T00:00:00') : new Date();
+          const validTime = !isNaN(vencDate.getTime()) ? vencDate.getTime() : today.getTime();
+          const diffTime = today.getTime() - validTime;
+          const calcDays = Math.floor(diffTime / (1000 * 3600 * 24));
+          const diasAtraso = isNaN(calcDays) ? 0 : calcDays;
 
           let statusCategoria: 'Em dia' | 'Vence hoje' | 'Atrasado' = 'Em dia';
 
@@ -82,9 +85,9 @@ export const CobrancasView: React.FC = () => {
             clienteWhatsapp: cli?.whatsapp || cli?.telefone || '',
             emprestimoID: emp.id,
             parcelaNumero: par.numero,
-            vencimento: par.vencimento,
-            valorParcela: par.valorParcela,
-            valorPagoTotal: par.valorPagoTotal,
+            vencimento: vencStr,
+            valorParcela: par.valorParcela || 0,
+            valorPagoTotal: par.valorPagoTotal || 0,
             saldoDevedorParcela: Math.round(saldo * 100) / 100,
             status: statusCategoria,
             diasAtraso: Math.max(0, diasAtraso),
@@ -97,10 +100,12 @@ export const CobrancasView: React.FC = () => {
   // Sort by priority: Atrasados first, then Vence Hoje, then Em dia
   cobrancasLista.sort((a, b) => {
     const priorityMap = { Atrasado: 1, 'Vence hoje': 2, 'Em dia': 3 };
-    if (priorityMap[a.status] !== priorityMap[b.status]) {
-      return priorityMap[a.status] - priorityMap[b.status];
+    const pA = priorityMap[a.status] || 3;
+    const pB = priorityMap[b.status] || 3;
+    if (pA !== pB) {
+      return pA - pB;
     }
-    return a.vencimento.localeCompare(b.vencimento);
+    return (a.vencimento || '').localeCompare(b.vencimento || '');
   });
 
   const handleCopyPix = () => {

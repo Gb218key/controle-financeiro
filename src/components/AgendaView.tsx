@@ -55,15 +55,17 @@ export const AgendaView: React.FC = () => {
 
   emprestimos.forEach((emp) => {
     const cli = clientes.find((c) => c.id === emp.clienteID);
-    emp.parcelas.forEach((par) => {
-      if (!parcelasPorData[par.vencimento]) {
-        parcelasPorData[par.vencimento] = [];
+    (emp.parcelas || []).forEach((par) => {
+      const vKey = par.vencimento || '';
+      if (!vKey) return;
+      if (!parcelasPorData[vKey]) {
+        parcelasPorData[vKey] = [];
       }
-      parcelasPorData[par.vencimento].push({
+      parcelasPorData[vKey].push({
         clienteNome: cli?.nome || 'Cliente',
         clienteWhatsapp: cli?.whatsapp || cli?.telefone || '',
-        valor: par.valorParcela - par.valorPagoTotal,
-        status: par.status,
+        valor: (par.valorParcela || 0) - (par.valorPagoTotal || 0),
+        status: par.status || 'Ativo',
         parcelaNumero: par.numero,
       });
     });

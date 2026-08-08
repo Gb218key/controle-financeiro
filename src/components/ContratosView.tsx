@@ -196,9 +196,9 @@ export const ContratosView: React.FC = () => {
               </p>
 
               <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2 font-mono text-[10px] bg-zinc-100 p-3 rounded border border-zinc-300 max-h-48 overflow-y-auto">
-                {currentLoan.parcelas.map((p) => (
+                {(currentLoan.parcelas || []).map((p) => (
                   <div key={p.numero}>
-                    {currentLoan.periodicidade === 'Diário' ? `Dia #${p.numero}` : `Parcela #${p.numero}`}: {p.vencimento} - {formatBRL(p.valorParcela)}
+                    {currentLoan.periodicidade === 'Diário' ? `Dia #${p.numero}` : `Parcela #${p.numero}`}: {p.vencimento} - {formatBRL(p.valorParcela || 0)}
                   </div>
                 ))}
               </div>

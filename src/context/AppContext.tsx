@@ -192,6 +192,16 @@ interface AppContextType {
     formaPagamento: Pagamento['formaPagamento'];
   }) => void;
 
+  registrarBaixaJuros: (baixaData: {
+    emprestimoID: string;
+    parcelaNumero?: number;
+    valorJurosPago: number;
+    formaPagamento: Pagamento['formaPagamento'];
+    prorrogarVencimento?: boolean;
+    dataBaixa?: string;
+    observacoes?: string;
+  }) => void;
+
   simularEmprestimo: (
     valor: number,
     taxaPercentual: number,
@@ -816,6 +826,139 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     ]);
   };
 
+  // Register Interest-Only Settlement (Baixa Exclusiva de Juros)
+  const registrarBaixaJuros = (baixaData: {
+    emprestimoID: string;
+    parcelaNumero?: number;
+    valorJurosPago: number;
+    formaPagamento: Pagamento['formaPagamento'];
+    prorrogarVencimento?: boolean;
+    dataBaixa?: string;
+    observacoes?: string;
+  }) => {
+    const {
+      emprestimoID,
+      parcelaNumero,
+      valorJurosPago,
+      formaPagamento,
+      prorrogarVencimento,
+      dataBaixa,
+      observacoes,
+    } = baixaData;
+
+    const emp = emprestimos.find((e) => e.id === emprestimoID);
+    if (!emp) return;
+
+    const dtBase = dataBaixa && dataBaixa.length === 10 ? dataBaixa : new Date().toISOString().split('T')[0];
+    const nowStr = `${dtBase} ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+
+    const targetParcelaNum = parcelaNumero || emp.parcelas.find((p) => p.status !== 'Pago')?.numero || 1;
+
+    const updatedParcelas = (emp.parcelas || []).map((p) => {
+      if (p.numero === targetParcelaNum) {
+        let newVencimento = p.vencimento;
+
+        if (prorrogarVencimento && p.vencimento) {
+          const parts = p.vencimento.split('-').map((n) => parseInt(n, 10));
+          const baseYear = !isNaN(parts[0]) && parts[0] > 1900 ? parts[0] : new Date().getFullYear();
+          const baseMonth = !isNaN(parts[1]) && parts[1] >= 1 && parts[1] <= 12 ? parts[1] : new Date().getMonth() + 1;
+          const baseDay = !isNaN(parts[2]) && parts[2] >= 1 && parts[2] <= 31 ? parts[2] : new Date().getDate();
+
+          let dt: Date;
+          if (emp.periodicidade === 'Diário') {
+            dt = new Date(baseYear, baseMonth - 1, baseDay + 1);
+          } else if (emp.periodicidade === 'Semanal') {
+            dt = new Date(baseYear, baseMonth - 1, baseDay + 7);
+          } else if (emp.periodicidade === 'Quinzenal') {
+            dt = new Date(baseYear, baseMonth - 1, baseDay + 15);
+          } else {
+            const nextMonth = baseMonth; // baseMonth is 1-indexed, so baseMonth index = baseMonth
+            const actualDay = Math.min(baseDay, new Date(baseYear, nextMonth + 1, 0).getDate());
+            dt = new Date(baseYear, nextMonth, actualDay);
+          }
+
+          if (!isNaN(dt.getTime())) {
+            const yyyy = dt.getFullYear();
+            const mm = String(dt.getMonth() + 1).padStart(2, '0');
+            const dd = String(dt.getDate()).padStart(2, '0');
+            newVencimento = `${yyyy}-${mm}-${dd}`;
+          }
+        }
+
+        const totalPagoAteAgora = (p.valorPagoTotal || 0) + valorJurosPago;
+        let novoStatus: StatusParcela = p.status;
+        if (totalPagoAteAgora >= p.valorParcela) {
+          novoStatus = 'Pago';
+        } else if (totalPagoAteAgora > 0) {
+          novoStatus = 'Parcial';
+        }
+
+        if (prorrogarVencimento && novoStatus !== 'Pago') {
+          novoStatus = 'Em dia';
+        }
+
+        return {
+          ...p,
+          vencimento: newVencimento,
+          valorPagoTotal: totalPagoAteAgora,
+          status: novoStatus,
+          dataPagamento: nowStr,
+        };
+      }
+      return p;
+    });
+
+    const todosPagos = updatedParcelas.every((p) => p.status === 'Pago');
+    const novoStatusEmprestimo = todosPagos ? 'Quitado' : 'Ativo';
+
+    const totalPagoEmprestimo = updatedParcelas.reduce((acc, p) => acc + (p.valorPagoTotal || 0), 0);
+    const saldoRestanteTotal = Math.max(0, emp.valorTotal - totalPagoEmprestimo);
+
+    setEmprestimos((prev) =>
+      prev.map((e) =>
+        e.id === emprestimoID
+          ? {
+              ...e,
+              parcelas: updatedParcelas,
+              status: e.status === 'Cancelado' ? 'Cancelado' : novoStatusEmprestimo,
+            }
+          : e
+      )
+    );
+
+    const noteText = `Baixa Exclusiva de Juros${prorrogarVencimento ? ' (com Prorrogação de Vencimento)' : ''}${observacoes ? ` - ${observacoes}` : ''}`;
+
+    const newPagamento: Pagamento = {
+      id: `pag-juros-${Date.now()}`,
+      emprestimoID,
+      clienteID: emp.clienteID,
+      parcelaNumero: targetParcelaNum,
+      data: nowStr,
+      valorPago: valorJurosPago,
+      formaPagamento,
+      saldoRestante: Math.round(saldoRestanteTotal * 100) / 100,
+      comprovanteNota: noteText,
+      tipoPagamento: 'Apenas Juros',
+    };
+
+    setPagamentos((prev) => [newPagamento, ...prev]);
+
+    const cliente = clientes.find((c) => c.id === emp.clienteID);
+    setNotificacoes((prev) => [
+      {
+        id: `not-${Date.now()}`,
+        titulo: 'Baixa de Juros Realizada',
+        mensagem: `Baixa de juros de R$ ${valorJurosPago.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} registrada para ${cliente?.nome || 'Cliente'}.`,
+        tipo: 'sucesso',
+        data: dtBase,
+        lida: false,
+        clienteID: emp.clienteID,
+        emprestimoID,
+      },
+      ...prev,
+    ]);
+  };
+
   const marcarNotificacaoLida = (id: string) => {
     setNotificacoes((prev) =>
       prev.map((n) => (n.id === id ? { ...n, lida: true } : n))
@@ -1064,6 +1207,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         addEmprestimo,
         deleteEmprestimo,
         registrarPagamento,
+        registrarBaixaJuros,
         simularEmprestimo,
         marcarNotificacaoLida,
         marcarTodasNotificacoesLidas,

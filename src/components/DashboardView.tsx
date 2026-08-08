@@ -64,7 +64,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   emprestimos.forEach((emp) => {
     if (emp.status !== 'Quitado' && emp.status !== 'Cancelado') {
       const cli = clientes.find((c) => c.id === emp.clienteID);
-      emp.parcelas.forEach((par) => {
+      (emp.parcelas || []).forEach((par) => {
         if (par.status !== 'Pago') {
           todasParcelasComInfo.push({
             clienteNome: cli?.nome || 'Cliente Desconhecido',
@@ -72,9 +72,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             clienteID: emp.clienteID,
             emprestimoID: emp.id,
             numero: par.numero,
-            vencimento: par.vencimento,
-            valorParcela: par.valorParcela - par.valorPagoTotal,
-            status: par.status,
+            vencimento: par.vencimento || '',
+            valorParcela: (par.valorParcela || 0) - (par.valorPagoTotal || 0),
+            status: par.status || 'Ativo',
           });
         }
       });
@@ -82,7 +82,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   });
 
   // Sort by vencimento
-  todasParcelasComInfo.sort((a, b) => a.vencimento.localeCompare(b.vencimento));
+  todasParcelasComInfo.sort((a, b) => (a.vencimento || '').localeCompare(b.vencimento || ''));
 
   const formatBRL = (val: number) =>
     val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });

@@ -13,7 +13,8 @@ import {
   ShieldAlert,
   ChevronRight,
   TrendingUp,
-  Landmark
+  Landmark,
+  Percent
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { ModuloApp } from '../types';
@@ -38,6 +39,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenNovoCliente, onOpenNovoE
     { id: 'Dashboard', label: 'Painel de Controle', icon: LayoutDashboard },
     { id: 'Clientes', label: 'Clientes', icon: Users },
     { id: 'Empréstimos', label: 'Empréstimos', icon: Banknote },
+    { id: 'Baixa de Juros', label: 'Baixa de Juros', icon: Percent },
     {
       id: 'Cobranças',
       label: 'Cobranças',

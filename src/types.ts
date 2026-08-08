@@ -63,6 +63,7 @@ export interface Pagamento {
   formaPagamento: 'PIX' | 'Dinheiro' | 'Transferência' | 'Cartão' | 'Outro';
   saldoRestante: number;
   comprovanteNota?: string;
+  tipoPagamento?: 'Total' | 'Apenas Juros' | 'Parcial';
 }
 
 export interface Notificacao {
@@ -117,6 +118,7 @@ export type ModuloApp =
   | 'Clientes' 
   | 'Empréstimos' 
   | 'Cobranças' 
+  | 'Baixa de Juros'
   | 'Relatórios' 
   | 'Contratos' 
   | 'Agenda' 
