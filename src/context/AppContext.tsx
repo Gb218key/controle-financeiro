@@ -320,6 +320,29 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, []);
 
+  // State Ref to prevent fetchSharedState dependency changes and infinite re-render loops
+  const stateRef = React.useRef({
+    clientes,
+    emprestimos,
+    pagamentos,
+    notificacoes,
+    configuracoes,
+    usuarios,
+    perfil,
+  });
+
+  useEffect(() => {
+    stateRef.current = {
+      clientes,
+      emprestimos,
+      pagamentos,
+      notificacoes,
+      configuracoes,
+      usuarios,
+      perfil,
+    };
+  }, [clientes, emprestimos, pagamentos, notificacoes, configuracoes, usuarios, perfil]);
+
   const fetchSharedState = React.useCallback(async () => {
     try {
       const res = await fetch('/api/data');
@@ -331,15 +354,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       if (data.empty) {
         // First run on server: publish current local state
-        const payload = {
-          clientes,
-          emprestimos,
-          pagamentos,
-          notificacoes,
-          configuracoes,
-          usuarios,
-          perfil,
-        };
+        const payload = stateRef.current;
         const postRes = await fetch('/api/data', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -370,7 +385,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       console.warn('Sync server connection warning:', err);
       setSyncStatus((prev) => ({ ...prev, isOnline: false }));
     }
-  }, [clientes, emprestimos, pagamentos, notificacoes, configuracoes, usuarios, perfil]);
+  }, []);
 
   const manualSync = async () => {
     await fetchSharedState();
