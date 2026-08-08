@@ -96,15 +96,16 @@ export const BaixaJurosView: React.FC = () => {
     .reduce((acc, p) => acc + p.valorPago, 0);
 
   const openModalBaixa = (emp: Emprestimo) => {
-    const nextParcela = emp.parcelas.find((p) => p.status !== 'Pago') || emp.parcelas[0];
+    const listParcelas = emp.parcelas || [];
+    const nextParcela = listParcelas.find((p) => p && p.status !== 'Pago') || listParcelas[0];
     const num = nextParcela ? nextParcela.numero : 1;
 
     // Calculate interest amount
     let calcJuros = 0;
-    if (nextParcela && nextParcela.juros > 0) {
+    if (nextParcela && (nextParcela.juros || 0) > 0) {
       calcJuros = nextParcela.juros;
     } else {
-      calcJuros = (emp.valorEmprestado * emp.juros) / 100;
+      calcJuros = ((emp.valorEmprestado || 0) * (emp.juros || 0)) / 100;
     }
 
     setSelectedEmprestimo(emp);
@@ -121,8 +122,9 @@ export const BaixaJurosView: React.FC = () => {
     if (!selectedEmprestimo || valorJurosInput <= 0) return;
 
     const cli = clientes.find((c) => c.id === selectedEmprestimo.clienteID);
-    const currentParcela = selectedEmprestimo.parcelas.find(
-      (p) => p.numero === selectedParcelaNum
+    const listParcelas = selectedEmprestimo.parcelas || [];
+    const currentParcela = listParcelas.find(
+      (p) => p && p.numero === selectedParcelaNum
     );
 
     // Calculate next due date if prorrogar is true
@@ -364,13 +366,14 @@ _Agradecemos a preferência!_`;
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredLoans.map((emp) => {
                 const cli = clientes.find((c) => c.id === emp.clienteID);
+                const listParcelas = emp.parcelas || [];
                 const nextParcela =
-                  emp.parcelas.find((p) => p.status !== 'Pago') || emp.parcelas[0];
+                  listParcelas.find((p) => p && p.status !== 'Pago') || listParcelas[0];
 
                 // Calculate interest
-                const valJurosCalc = nextParcela?.juros > 0
+                const valJurosCalc = (nextParcela && (nextParcela.juros || 0) > 0)
                   ? nextParcela.juros
-                  : (emp.valorEmprestado * emp.juros) / 100;
+                  : ((emp.valorEmprestado || 0) * (emp.juros || 0)) / 100;
 
                 return (
                   <div
@@ -589,15 +592,15 @@ _Agradecemos a preferência!_`;
                   onChange={(e) => {
                     const num = parseInt(e.target.value, 10);
                     setSelectedParcelaNum(num);
-                    const par = selectedEmprestimo.parcelas.find((p) => p.numero === num);
+                    const par = (selectedEmprestimo.parcelas || []).find((p) => p && p.numero === num);
                     if (par) {
-                      const calc = par.juros > 0 ? par.juros : (selectedEmprestimo.valorEmprestado * selectedEmprestimo.juros) / 100;
+                      const calc = (par.juros && par.juros > 0) ? par.juros : ((selectedEmprestimo.valorEmprestado || 0) * (selectedEmprestimo.juros || 0)) / 100;
                       setValorJurosInput(Math.round(calc * 100) / 100);
                     }
                   }}
                   className="w-full rounded-xl bg-zinc-900 border border-white/10 px-3 py-2 text-xs text-white focus:border-[#D4AF37] focus:outline-none"
                 >
-                  {selectedEmprestimo.parcelas.map((p) => (
+                  {(selectedEmprestimo.parcelas || []).map((p) => (
                     <option key={p.numero} value={p.numero}>
                       Parcela #{p.numero} - Vencimento {p.vencimento} ({p.status})
                     </option>

@@ -652,7 +652,7 @@ export const ClientesView: React.FC<ClientesViewProps> = ({ initialOpenNovo }) =
 
                         {/* Installment detail */}
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
-                          {emp.parcelas.map((par) => (
+                          {(emp.parcelas || []).map((par) => (
                             <div
                               key={par.id}
                               className={`rounded-lg border p-2 ${

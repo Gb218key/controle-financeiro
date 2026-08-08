@@ -475,11 +475,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   useEffect(() => {
     setClientes((prev) =>
       prev.map((cli) => {
-        const cliLoans = emprestimos.filter((e) => e.clienteID === cli.id && e.status !== 'Cancelado');
+        const cliLoans = emprestimos.filter((e) => e && e.clienteID === cli.id && e.status !== 'Cancelado');
         if (cliLoans.length === 0) return cli;
 
         const hasOverdue = cliLoans.some((emp) =>
-          emp.parcelas.some((p) => p.status === 'Atrasado')
+          (emp.parcelas || []).some((p) => p && p.status === 'Atrasado')
         );
 
         const allPaid = cliLoans.every((emp) => emp.status === 'Quitado');
@@ -1136,10 +1136,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Interest received: total paid - amortized capital portion paid
   let jurosRecebidos = 0;
   emprestimos.forEach((emp) => {
-    emp.parcelas.forEach((par) => {
-      if (par.valorPagoTotal > 0) {
-        const proporcaoJuros = par.juros / par.valorParcela;
-        jurosRecebidos += par.valorPagoTotal * (isNaN(proporcaoJuros) ? 0 : proporcaoJuros);
+    if (!emp) return;
+    (emp.parcelas || []).forEach((par) => {
+      if (par && (par.valorPagoTotal || 0) > 0) {
+        const valPar = par.valorParcela || 1;
+        const proporcaoJuros = (par.juros || 0) / valPar;
+        jurosRecebidos += (par.valorPagoTotal || 0) * (isNaN(proporcaoJuros) ? 0 : proporcaoJuros);
       }
     });
   });
@@ -1152,8 +1154,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const baseCaixa = configuracoes.saldoInicialCaixa ?? 0;
   const dinheiroCaixa = baseCaixa + totalRecebido - totalEmprestado;
 
-  const clientesAtivos = clientes.filter((c) => c.status === 'Ativo').length;
-  const clientesInadimplentes = clientes.filter((c) => c.status === 'Inadimplente').length;
+  const clientesAtivos = clientes.filter((c) => c && c.status === 'Ativo').length;
+  const clientesInadimplentes = clientes.filter((c) => c && c.status === 'Inadimplente').length;
 
   let parcelasVencidasCount = 0;
   let parcelasVencidasValor = 0;
@@ -1161,14 +1163,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   let parcelasParaVencerValor = 0;
 
   emprestimos.forEach((emp) => {
-    if (emp.status !== 'Cancelado' && emp.status !== 'Quitado') {
-      emp.parcelas.forEach((par) => {
+    if (emp && emp.status !== 'Cancelado' && emp.status !== 'Quitado') {
+      (emp.parcelas || []).forEach((par) => {
+        if (!par) return;
+        const saldoPendente = (par.valorParcela || 0) - (par.valorPagoTotal || 0);
         if (par.status === 'Atrasado') {
           parcelasVencidasCount += 1;
-          parcelasVencidasValor += (par.valorParcela - par.valorPagoTotal);
+          parcelasVencidasValor += Math.max(0, saldoPendente);
         } else if (par.status === 'Em dia' || par.status === 'Vence hoje') {
           parcelasParaVencerCount += 1;
-          parcelasParaVencerValor += (par.valorParcela - par.valorPagoTotal);
+          parcelasParaVencerValor += Math.max(0, saldoPendente);
         }
       });
     }
